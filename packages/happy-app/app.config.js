@@ -220,8 +220,11 @@ export default {
             router: {
                 root: "./sources/app"
             },
+            // FORK-ONLY, never upstream: own EAS project under falk53's account.
+            // Upstream pins projectId "4558dd3d-..." and owner "bulkacorp" here;
+            // both were removed so `eas build` doesn't target their project.
             eas: {
-                projectId: "4558dd3d-cd5a-47cd-bad9-e591a241cc06"
+                projectId: "67daec3a-3c64-482e-bf31-bc293ada3917"
             },
             app: {
                 postHogKey: process.env.EXPO_PUBLIC_POSTHOG_API_KEY,
@@ -233,7 +236,6 @@ export default {
                 buildCommitSha: buildMetadata.commitSha,
                 buildCommitTimestamp: buildMetadata.commitTimestamp,
             }
-        },
-        owner: "bulkacorp"
+        }
     }
 };
