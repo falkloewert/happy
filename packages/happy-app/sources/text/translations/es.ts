@@ -57,6 +57,7 @@ export const es: TranslationStructure = {
         version: 'Versión',
         copied: 'Copiado',
         copy: 'Copiar',
+        readAloud: 'Leer en voz alta',
         scanning: 'Escaneando...',
         urlPlaceholder: 'https://ejemplo.com',
         home: 'Inicio',

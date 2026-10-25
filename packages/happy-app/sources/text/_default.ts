@@ -57,6 +57,7 @@ export const en = {
         version: 'Version',
         copied: 'Copied',
         copy: 'Copy',
+        readAloud: 'Read aloud', // Fork-only feature, not upstream
         scanning: 'Scanning...',
         urlPlaceholder: 'https://example.com',
         home: 'Home',

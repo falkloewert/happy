@@ -59,6 +59,7 @@ export const zhHans: TranslationStructure = {
         version: '版本',
         copied: '已复制',
         copy: '复制',
+        readAloud: '朗读',
         scanning: '扫描中...',
         urlPlaceholder: 'https://example.com',
         home: '主页',

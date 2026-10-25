@@ -5,7 +5,7 @@ import { stringifyToolCommand } from './toolCommand';
 /**
  * Extracts plain text from markdown by removing formatting
  */
-function stripMarkdown(text: string): string {
+export function stripMarkdown(text: string): string {
   return text
     // Remove headers
     .replace(/^#{1,6}\s+/gm, '')

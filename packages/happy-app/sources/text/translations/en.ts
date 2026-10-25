@@ -71,6 +71,7 @@ export const en: TranslationStructure = {
         discard: 'Discard',
         version: 'Version',
         copy: 'Copy',
+        readAloud: 'Read aloud',
         copied: 'Copied',
         scanning: 'Scanning...',
         urlPlaceholder: 'https://example.com',

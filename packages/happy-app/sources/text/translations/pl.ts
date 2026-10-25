@@ -68,6 +68,7 @@ export const pl: TranslationStructure = {
         version: 'Wersja',
         copied: 'Skopiowano',
         copy: 'Kopiuj',
+        readAloud: 'Odczytaj',
         scanning: 'Skanowanie...',
         urlPlaceholder: 'https://example.com',
         home: 'Główna',

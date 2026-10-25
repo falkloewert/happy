@@ -59,6 +59,7 @@ export const zhHant: TranslationStructure = {
         version: '版本',
         copied: '已複製',
         copy: '複製',
+        readAloud: '朗讀',
         scanning: '掃描中...',
         urlPlaceholder: 'https://example.com',
         home: '首頁',

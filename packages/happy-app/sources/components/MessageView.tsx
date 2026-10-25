@@ -3,6 +3,8 @@ import { Platform, Pressable, Text, View } from "react-native";
 import { StyleSheet, useUnistyles } from 'react-native-unistyles';
 import { Ionicons } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
+import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
+import { File, Paths } from 'expo-file-system';
 import { MarkdownView } from "./markdown/MarkdownView";
 import { t } from '@/text';
 import { Message, UserTextMessage, AgentTextMessage, ToolCallMessage, isOtherParticipantMessage } from "@/sync/typesMessage";
@@ -17,6 +19,10 @@ import { Typography } from '@/constants/Typography';
 import { parseLocalCommandMessage, isUserSlashCommandEcho } from './parseLocalCommandMessage';
 import { resolveUserMessageBubbleColor } from '@/utils/userMessageBubbleColor';
 import { LongPressCopyable } from './LongPressCopyable';
+import { formatSessionListTimestamp } from '@/utils/sessionListTimestamp';
+import { formatLastSeen } from '@/utils/sessionUtils';
+import { useElapsedTime } from '@/hooks/useElapsedTime';
+import { stripMarkdown } from '@/utils/messageUtils';
 
 
 export const MessageView = React.memo((props: {
@@ -24,6 +30,9 @@ export const MessageView = React.memo((props: {
   metadata: Metadata | null;
   sessionId: string;
   getMessageById?: (id: string) => Message | null;
+  // ENTWURF (Fork-Feature "Zeitstempel"): true nur fuer die zuletzt empfangene
+  // Agent-Antwort der Session, siehe ChatList.tsx latestAgentMessageId.
+  isLatestAgentMessage?: boolean;
 }) => {
   return (
     <View
@@ -36,6 +45,7 @@ export const MessageView = React.memo((props: {
           metadata={props.metadata}
           sessionId={props.sessionId}
           getMessageById={props.getMessageById}
+          isLatestAgentMessage={props.isLatestAgentMessage}
         />
       </View>
     </View>
@@ -48,6 +58,7 @@ function RenderBlock(props: {
   metadata: Metadata | null;
   sessionId: string;
   getMessageById?: (id: string) => Message | null;
+  isLatestAgentMessage?: boolean;
 }): React.ReactElement {
   switch (props.message.kind) {
     case 'user-text':
@@ -60,7 +71,7 @@ function RenderBlock(props: {
       );
 
     case 'agent-text':
-      return <AgentTextBlock message={props.message} sessionId={props.sessionId} />;
+      return <AgentTextBlock message={props.message} sessionId={props.sessionId} isLatest={!!props.isLatestAgentMessage} />;
 
     case 'tool-call':
       return <ToolCallBlock
@@ -259,6 +270,7 @@ function UserTextBlock(props: {
 function AgentTextBlock(props: {
   message: AgentTextMessage;
   sessionId: string;
+  isLatest: boolean;
 }) {
   const handleOptionPress = React.useCallback((option: Option) => {
     sync.sendMessage(props.sessionId, option.title, { source: 'option' });
@@ -272,8 +284,102 @@ function AgentTextBlock(props: {
   return (
     <View style={styles.agentMessageContainer}>
       <MarkdownView markdown={props.message.text} onOptionPress={handleOptionPress} sessionId={props.sessionId} />
-      <MessageCopyButton text={props.message.text} />
+      <View style={styles.messageActionsRow}>
+        <MessageCopyButton text={props.message.text} />
+        <MessageReadAloudButton text={props.message.text} />
+        {props.isLatest && <MessageTimestamp createdAt={props.message.createdAt} relative />}
+        <MessageTimestamp createdAt={props.message.createdAt} relative={false} />
+      </View>
     </View>
+  );
+}
+
+// ENTWURF, nicht fertig: Endpoint muss aus Settings kommen (eigener TTS-Server),
+// nicht hardcoded, und braucht Auth + HTTPS vor echtem Einsatz (siehe offene
+// Fragen - Android blockiert Klartext-HTTP in Release-Builds). Server-Entwurf
+// dazu: scratchpad/piper-test/server.js
+const TTS_ENDPOINT = 'http://localhost:5055/tts';
+const TTS_TIMEOUT_MS = 15000;
+
+function MessageReadAloudButton(props: { text: string }) {
+  const { theme } = useUnistyles();
+  const [state, setState] = React.useState<'idle' | 'loading' | 'playing'>('idle');
+  const player = useAudioPlayer();
+  const status = useAudioPlayerStatus(player);
+  // Ref statt State als Sperre: State aus der Closure wuerde bei zwei schnellen
+  // Taps vor dem ersten Re-Render noch 'idle' lesen und zwei Requests ausloesen.
+  const busyRef = React.useRef(false);
+  const fileRef = React.useRef<File | null>(null);
+
+  const cleanupFile = React.useCallback(() => {
+    try {
+      fileRef.current?.delete();
+    } catch {
+      // Datei kann schon weg sein (z.B. OS-Cache-Bereinigung) - egal.
+    }
+    fileRef.current = null;
+  }, []);
+
+  React.useEffect(() => () => cleanupFile(), [cleanupFile]);
+
+  React.useEffect(() => {
+    if (status.didJustFinish) {
+      busyRef.current = false;
+      setState('idle');
+      cleanupFile();
+    }
+  }, [status.didJustFinish, cleanupFile]);
+
+  const handlePress = React.useCallback(async () => {
+    if (busyRef.current) return;
+    busyRef.current = true;
+    setState('loading');
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), TTS_TIMEOUT_MS);
+    try {
+      const res = await fetch(TTS_ENDPOINT, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: stripMarkdown(props.text) }),
+        signal: controller.signal,
+      });
+      if (!res.ok) throw new Error(`TTS fehlgeschlagen: ${res.status}`);
+      const bytes = new Uint8Array(await res.arrayBuffer());
+      cleanupFile();
+      const file = new File(Paths.cache, `vorlesen-${Date.now()}.wav`);
+      file.write(bytes);
+      fileRef.current = file;
+      player.replace(file.uri);
+      player.play();
+      setState('playing');
+      // busyRef bleibt true, bis didJustFinish oder ein Fehler es zuruecksetzt -
+      // verhindert einen zweiten Tap waehrend der Wiedergabe.
+    } catch (error) {
+      console.error('Read-aloud request failed:', error);
+      busyRef.current = false;
+      setState('idle');
+    } finally {
+      clearTimeout(timeout);
+    }
+  }, [props.text, player, cleanupFile]);
+
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={t('common.readAloud')}
+      hitSlop={COPY_HIT_SLOP}
+      onPress={handlePress}
+      style={({ pressed }) => [
+        styles.copyAction,
+        pressed && styles.copyActionPressed,
+      ]}
+    >
+      <Ionicons
+        name={state === 'loading' ? 'hourglass-outline' : state === 'playing' ? 'volume-high' : 'volume-medium-outline'}
+        size={16}
+        color={theme.colors.text}
+      />
+    </Pressable>
   );
 }
 
@@ -321,6 +427,22 @@ function MessageCopyButton(props: { text: string }) {
         color={theme.colors.text}
       />
     </Pressable>
+  );
+}
+
+// ENTWURF (Fork-Feature "Zeitstempel"): absolut bei jeder Agent-Antwort
+// (wie der Zeitstempel in der Sessionliste), relativ zusaetzlich nur bei der
+// zuletzt empfangenen - dafuer tickt useElapsedTime den Re-Render.
+function MessageTimestamp(props: { createdAt: number; relative: boolean }) {
+  const { theme } = useUnistyles();
+  useElapsedTime(props.relative ? props.createdAt : null);
+  const label = props.relative
+    ? formatLastSeen(props.createdAt)
+    : formatSessionListTimestamp(props.createdAt);
+  return (
+    <Text style={[styles.messageTimestamp, { color: theme.colors.textSecondary }]}>
+      {label}
+    </Text>
   );
 }
 
@@ -463,6 +585,17 @@ const styles = StyleSheet.create((theme) => ({
     marginVertical: 10,
     borderRadius: 16,
     maxWidth: '100%',
+  },
+  messageActionsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    alignSelf: 'flex-start',
+    marginTop: 0,
+  },
+  messageTimestamp: {
+    fontSize: 12,
+    ...Typography.default(),
   },
   copyAction: {
     // No width, so the box shrink-wraps the glyph and its left edge lands on the

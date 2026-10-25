@@ -57,6 +57,7 @@ export const ca: TranslationStructure = {
         version: 'Versió',
         copied: 'Copiat',
         copy: 'Copiar',
+        readAloud: 'Llegir en veu alta',
         scanning: 'Escanejant...',
         urlPlaceholder: 'https://exemple.com',
         home: 'Inici',

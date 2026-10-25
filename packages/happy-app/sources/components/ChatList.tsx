@@ -321,6 +321,18 @@ const ChatListInternal = React.memo((props: {
     // unchanged: without that, every background page would hand the list a new
     // array and re-render every mounted row for content that did not move.
     const messages = props.messages;
+    // ENTWURF (Fork-Feature "Zeitstempel"): messages ist newest-first, also ist
+    // der erste Treffer die zuletzt empfangene Agent-Antwort.
+    const latestAgentMessageId = React.useMemo(() => {
+        const found = messages.find((m) => m.kind === 'agent-text' && !m.isThinking);
+        return found?.id ?? null;
+    }, [messages]);
+    // Read via ref inside renderItem (not as a useCallback dep): every new
+    // agent message changes this id, and putting it in the dep array would
+    // recreate renderItem - and with it every visible row's cell - each time,
+    // the same reason listItemsRef exists below.
+    const latestAgentMessageIdRef = React.useRef(latestAgentMessageId);
+    latestAgentMessageIdRef.current = latestAgentMessageId;
     const windowRef = React.useRef<Message[]>(EMPTY_MESSAGES);
     const windowedMessages = React.useMemo(() => {
         if (messages.length === 0) return EMPTY_MESSAGES;
@@ -603,6 +615,7 @@ const ChatListInternal = React.memo((props: {
                     message={item.message}
                     metadata={props.metadata}
                     sessionId={props.sessionId}
+                    isLatestAgentMessage={item.message.id === latestAgentMessageIdRef.current}
                 />
             </DiffSyntaxCell>
         );
@@ -811,6 +824,11 @@ const ChatListInternal = React.memo((props: {
                 // of the screen.
                 contentContainerStyle={{ paddingTop: 8 + (props.bottomContentInset ?? 0) }}
                 renderItem={renderItem}
+                // Tells FlashList to re-render cells when only this changes -
+                // renderItem itself stays referentially stable (see
+                // latestAgentMessageIdRef above) so a new agent message does
+                // not recreate every visible cell, just re-render them.
+                extraData={latestAgentMessageId}
                 viewabilityConfig={SYNTAX_VIEWABILITY}
                 onViewableItemsChanged={syntaxViewport.update}
                 onScroll={handleScroll}

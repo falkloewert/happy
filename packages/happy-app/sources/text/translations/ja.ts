@@ -59,6 +59,7 @@ export const ja: TranslationStructure = {
         version: 'バージョン',
         copied: 'コピーしました',
         copy: 'コピー',
+        readAloud: '読み上げ',
         scanning: 'スキャン中...',
         urlPlaceholder: 'https://example.com',
         home: 'ホーム',
