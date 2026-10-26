@@ -318,15 +318,6 @@ interface CachedAudio {
 
 const audioCache = new Map<string, CachedAudio>();
 
-function audioCacheKey(text: string): string {
-  // djb2 - reicht, um denselben Text wiederzufinden; kein Sicherheitsbedarf.
-  let hash = 5381;
-  for (let i = 0; i < text.length; i++) {
-    hash = ((hash * 33) ^ text.charCodeAt(i)) >>> 0;
-  }
-  return `${hash.toString(36)}-${text.length}`;
-}
-
 function deleteAudioFileQuietly(uri: string) {
   try {
     new File(uri).delete();
@@ -336,13 +327,6 @@ function deleteAudioFileQuietly(uri: string) {
 }
 
 function pruneAudioCache() {
-  const now = Date.now();
-  for (const [key, entry] of audioCache) {
-    if (now - entry.createdAt > AUDIO_CACHE_TTL_MS) {
-      deleteAudioFileQuietly(entry.uri);
-      audioCache.delete(key);
-    }
-  }
   while (audioCache.size > AUDIO_CACHE_LIMIT) {
     const oldest = audioCache.keys().next();
     if (oldest.done) break;
@@ -403,7 +387,7 @@ function MessageReadAloudButton(props: { text: string }) {
   const startPlayback = React.useCallback(async () => {
     if (busyRef.current) return;
     busyRef.current = true;
-    const cached = readCachedAudio(audioCacheKey(props.text));
+    const cached = readCachedAudio(props.text);
     if (cached) {
       playUri(cached);
       return;
@@ -423,7 +407,7 @@ function MessageReadAloudButton(props: { text: string }) {
       const file = new File(Paths.cache, `vorlesen-${Date.now()}.wav`);
       file.write(bytes);
       pruneAudioCache();
-      audioCache.set(audioCacheKey(props.text), { uri: file.uri, createdAt: Date.now() });
+      audioCache.set(props.text, { uri: file.uri, createdAt: Date.now() });
       playUri(file.uri);
     } catch (error) {
       console.error('Read-aloud request failed:', error);
@@ -445,9 +429,11 @@ function MessageReadAloudButton(props: { text: string }) {
     setState('idle');
   }, [player]);
 
+  const isActive = state === 'playing' || state === 'paused';
+
   const handlePress = React.useCallback(() => {
     if (state === 'loading') return;
-    if (state === 'playing' || state === 'paused') {
+    if (isActive) {
       stopPlayback();
       return;
     }
@@ -471,16 +457,14 @@ function MessageReadAloudButton(props: { text: string }) {
     setRate(next);
     // Takes effect immediately if something is already playing; the next
     // playback picks it up from the setting either way.
-    if (state === 'playing' || state === 'paused') player.setPlaybackRate(next, 'high');
-  }, [rate, setRate, state, player]);
-
-  const controlsVisible = state === 'playing' || state === 'paused';
+    if (isActive) player.setPlaybackRate(next, 'high');
+  }, [rate, setRate, isActive, player]);
 
   return (
     <>
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel={state === 'playing' || state === 'paused' ? t('common.readAloudStop') : t('common.readAloud')}
+        accessibilityLabel={isActive ? t('common.readAloudStop') : t('common.readAloud')}
         hitSlop={READ_ALOUD_HIT_SLOP}
         onPress={handlePress}
         style={({ pressed }) => [
@@ -495,13 +479,13 @@ function MessageReadAloudButton(props: { text: string }) {
           <Ionicons name="alert-circle" size={22} color={theme.colors.status.error} />
         ) : (
           <Ionicons
-            name={state === 'playing' || state === 'paused' ? 'stop-circle' : 'volume-medium-outline'}
+            name={isActive ? 'stop-circle' : 'volume-medium-outline'}
             size={22}
             color={theme.colors.text}
           />
         )}
       </Pressable>
-      {controlsVisible && (
+      {isActive && (
         <Animated.View
           entering={controlsEntering}
           exiting={controlsExiting}
