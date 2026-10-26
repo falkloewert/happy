@@ -22,17 +22,25 @@ Eigener Fork von [slopus/happy](https://github.com/slopus/happy) (MIT) unter `fa
 
 ## Als nächstes
 
-- [ ] (2026-10-26) Entscheiden, ob/wann ein PR an `slopus/happy` versucht wird. Lizenz (MIT) und
-      Code-Zuschnitt (kein Eingriff in Sync/Encryption/Voice-Core) sprechen dafuer, ihr Geschaeftsmodell
-      (Voice ist "the only thing we charge for") moeglicherweise dagegen. Vorher auf jeden Fall:
-      `app.config.js`-Commit (`fork: eigenes EAS-Projekt...`) niemals mitschicken.
+- [ ] (2026-10-26) PR-Antwort von `slopus/happy` abwarten/bearbeiten (Codex-Review, menschliches
+      Review, moegliche Ablehnung wegen Geschaeftsmodell-Naehe o.ae.) — siehe unten.
+- [ ] (2026-10-26) Falls der PR angenommen wird: `fork/falk-features` auf das dann aktuelle
+      `upstream/main` rebasen, damit der Vorlesen-Branch nicht doppelt denselben Code enthaelt.
 
 ## Umgesetzt (Entwurf, Branch `fork/falk-features`)
 
 - [x] (2026-10-25) **Vorlesen-Button** an Agent-Antworten (Piper TTS, Thorsten-Stimme, CPU).
 - [x] (2026-10-25) **Zeitstempel**: absolute Zeit bei jeder Agent-Antwort, relative Zeit
-      ("vor X Min") zusaetzlich nur bei der jeweils letzten.
+      zusaetzlich nur bei der jeweils letzten.
 - [x] (2026-10-26) Review-Runde (reviewer-Agent) durchlaufen, alle gefundenen Bugs gefixt
       (Button blieb nach erstem Abspielen tot, Doppel-Tap-Race, haengender Request ohne Timeout,
       nie geloeschte temp-WAV-Dateien, unnoetige FlashList-Re-Renders, Markdown ging ungefiltert
       an Piper, Server lauschte offen fuers LAN).
+- [x] (2026-10-26) Vorlesen-Button: groesser, Ladebalken, rotes Fehler-Icon + Modal mit echter
+      Fehlermeldung bei Fehlschlag (vorher: sichtbar passierte nichts beim Draufdruecken).
+- [x] (2026-10-26) **Zeitstempel als eigener PR an upstream**: aus `fork/falk-features` auf
+      eigenen Branch `feature/message-timestamps` extrahiert (nur die reine Zeitstempel-Aenderung,
+      kein Vorlesen/Piper-Code, keine Fork-only-Config), per `ponytail-review` bereinigt (eigener
+      Kompakt-Formatter durch vorhandenes `formatLastSeen` ersetzt, Ref+`extraData`-Umweg in
+      `ChatList.tsx` durch simples Dependency-Array ersetzt — 18 Zeilen weniger, gleiche Funktion).
+      PR offen: https://github.com/slopus/happy/pull/1922
