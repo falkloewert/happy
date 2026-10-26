@@ -61,6 +61,8 @@ export const zhHant: TranslationStructure = {
         copy: '複製',
         readAloud: '朗讀',
         readAloudStop: '停止朗讀',
+        readAloudPause: '暫停朗讀',
+        readAloudResume: '繼續朗讀',
         readAloudFailed: '無法朗讀訊息',
         readAloudSpeed: ({ rate }: { rate: number }) => `播放速度: ${rate}×`,
         readAloudTimeout: 'TTS伺服器未及時回應。',

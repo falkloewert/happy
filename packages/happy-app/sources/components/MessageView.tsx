@@ -5,6 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
 import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
 import { File, Paths } from 'expo-file-system';
+import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
 import { MarkdownView } from "./markdown/MarkdownView";
 import { t } from '@/text';
 import { Message, UserTextMessage, AgentTextMessage, ToolCallMessage, isOtherParticipantMessage } from "@/sync/typesMessage";
@@ -304,53 +305,109 @@ const TTS_TIMEOUT_MS = 15000;
 
 const READ_ALOUD_RATES = [1, 1.5, 2] as const;
 
+// Erneutes Abspielen derselben Antwort soll nicht wieder auf den TTS-Server
+// warten. Die zuletzt erzeugten Dateien bleiben darum kurz liegen, statt beim
+// Stoppen geloescht zu werden - klein und kurzlebig, damit nichts auflaeuft.
+const AUDIO_CACHE_TTL_MS = 5 * 60 * 1000;
+const AUDIO_CACHE_LIMIT = 3;
+
+interface CachedAudio {
+  uri: string;
+  createdAt: number;
+}
+
+const audioCache = new Map<string, CachedAudio>();
+
+function audioCacheKey(text: string): string {
+  // djb2 - reicht, um denselben Text wiederzufinden; kein Sicherheitsbedarf.
+  let hash = 5381;
+  for (let i = 0; i < text.length; i++) {
+    hash = ((hash * 33) ^ text.charCodeAt(i)) >>> 0;
+  }
+  return `${hash.toString(36)}-${text.length}`;
+}
+
+function deleteAudioFileQuietly(uri: string) {
+  try {
+    new File(uri).delete();
+  } catch {
+    // Datei kann schon weg sein (z.B. OS-Cache-Bereinigung) - egal.
+  }
+}
+
+function pruneAudioCache() {
+  const now = Date.now();
+  for (const [key, entry] of audioCache) {
+    if (now - entry.createdAt > AUDIO_CACHE_TTL_MS) {
+      deleteAudioFileQuietly(entry.uri);
+      audioCache.delete(key);
+    }
+  }
+  while (audioCache.size > AUDIO_CACHE_LIMIT) {
+    const oldest = audioCache.keys().next();
+    if (oldest.done) break;
+    const entry = audioCache.get(oldest.value);
+    if (entry) deleteAudioFileQuietly(entry.uri);
+    audioCache.delete(oldest.value);
+  }
+}
+
+function readCachedAudio(key: string): string | null {
+  const entry = audioCache.get(key);
+  if (!entry) return null;
+  if (Date.now() - entry.createdAt > AUDIO_CACHE_TTL_MS) {
+    deleteAudioFileQuietly(entry.uri);
+    audioCache.delete(key);
+    return null;
+  }
+  return entry.uri;
+}
+
+type ReadAloudState = 'idle' | 'loading' | 'playing' | 'paused' | 'error';
+
+// Solange nichts laeuft, steht nur der Lautsprecher da; Pause und
+// Geschwindigkeit fahren erst mit der Wiedergabe ein.
+const controlsEntering = FadeIn.duration(160);
+const controlsExiting = FadeOut.duration(120);
+
 function MessageReadAloudButton(props: { text: string }) {
   const { theme } = useUnistyles();
-  const [state, setState] = React.useState<'idle' | 'loading' | 'playing' | 'error'>('idle');
+  const [state, setState] = React.useState<ReadAloudState>('idle');
   const [rate, setRate] = useSettingMutable('readAloudPlaybackRate');
   const player = useAudioPlayer();
   const status = useAudioPlayerStatus(player);
   // Ref statt State als Sperre: State aus der Closure wuerde bei zwei schnellen
   // Taps vor dem ersten Re-Render noch 'idle' lesen und zwei Requests ausloesen.
   const busyRef = React.useRef(false);
-  const fileRef = React.useRef<File | null>(null);
   const errorResetRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
   React.useEffect(() => () => {
     if (errorResetRef.current) clearTimeout(errorResetRef.current);
   }, []);
 
-  const cleanupFile = React.useCallback(() => {
-    try {
-      fileRef.current?.delete();
-    } catch {
-      // Datei kann schon weg sein (z.B. OS-Cache-Bereinigung) - egal.
-    }
-    fileRef.current = null;
-  }, []);
-
-  React.useEffect(() => () => cleanupFile(), [cleanupFile]);
-
   React.useEffect(() => {
     if (status.didJustFinish) {
       busyRef.current = false;
       setState('idle');
-      cleanupFile();
     }
-  }, [status.didJustFinish, cleanupFile]);
+  }, [status.didJustFinish]);
 
-  const handlePress = React.useCallback(async () => {
-    if (state === 'playing') {
-      // Tap again while playing stops it, instead of being silently
-      // swallowed by the busy-lock below.
-      player.pause();
-      busyRef.current = false;
-      setState('idle');
-      cleanupFile();
-      return;
-    }
+  const playUri = React.useCallback((uri: string) => {
+    player.replace(uri);
+    player.seekTo(0);
+    player.setPlaybackRate(rate, 'high');
+    player.play();
+    setState('playing');
+  }, [player, rate]);
+
+  const startPlayback = React.useCallback(async () => {
     if (busyRef.current) return;
     busyRef.current = true;
+    const cached = readCachedAudio(audioCacheKey(props.text));
+    if (cached) {
+      playUri(cached);
+      return;
+    }
     setState('loading');
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), TTS_TIMEOUT_MS);
@@ -363,16 +420,11 @@ function MessageReadAloudButton(props: { text: string }) {
       });
       if (!res.ok) throw new Error(`TTS fehlgeschlagen: ${res.status}`);
       const bytes = new Uint8Array(await res.arrayBuffer());
-      cleanupFile();
       const file = new File(Paths.cache, `vorlesen-${Date.now()}.wav`);
       file.write(bytes);
-      fileRef.current = file;
-      player.replace(file.uri);
-      player.setPlaybackRate(rate, 'high');
-      player.play();
-      setState('playing');
-      // busyRef bleibt true, bis didJustFinish oder ein Fehler es zuruecksetzt -
-      // verhindert einen zweiten Tap waehrend der Wiedergabe.
+      pruneAudioCache();
+      audioCache.set(audioCacheKey(props.text), { uri: file.uri, createdAt: Date.now() });
+      playUri(file.uri);
     } catch (error) {
       console.error('Read-aloud request failed:', error);
       busyRef.current = false;
@@ -385,21 +437,50 @@ function MessageReadAloudButton(props: { text: string }) {
     } finally {
       clearTimeout(timeout);
     }
-  }, [state, props.text, player, cleanupFile, rate]);
+  }, [props.text, playUri]);
+
+  const stopPlayback = React.useCallback(() => {
+    player.pause();
+    busyRef.current = false;
+    setState('idle');
+  }, [player]);
+
+  const handlePress = React.useCallback(() => {
+    if (state === 'loading') return;
+    if (state === 'playing' || state === 'paused') {
+      stopPlayback();
+      return;
+    }
+    void startPlayback();
+  }, [state, startPlayback, stopPlayback]);
+
+  const handleTogglePause = React.useCallback(() => {
+    if (state === 'playing') {
+      player.pause();
+      setState('paused');
+      return;
+    }
+    if (state === 'paused') {
+      player.play();
+      setState('playing');
+    }
+  }, [state, player]);
 
   const handleCycleRate = React.useCallback(() => {
     const next = READ_ALOUD_RATES[(READ_ALOUD_RATES.indexOf(rate as typeof READ_ALOUD_RATES[number]) + 1) % READ_ALOUD_RATES.length];
     setRate(next);
     // Takes effect immediately if something is already playing; the next
     // playback picks it up from the setting either way.
-    if (state === 'playing') player.setPlaybackRate(next, 'high');
+    if (state === 'playing' || state === 'paused') player.setPlaybackRate(next, 'high');
   }, [rate, setRate, state, player]);
+
+  const controlsVisible = state === 'playing' || state === 'paused';
 
   return (
     <>
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel={state === 'playing' ? t('common.readAloudStop') : t('common.readAloud')}
+        accessibilityLabel={state === 'playing' || state === 'paused' ? t('common.readAloudStop') : t('common.readAloud')}
         hitSlop={READ_ALOUD_HIT_SLOP}
         onPress={handlePress}
         style={({ pressed }) => [
@@ -414,23 +495,44 @@ function MessageReadAloudButton(props: { text: string }) {
           <Ionicons name="alert-circle" size={22} color={theme.colors.status.error} />
         ) : (
           <Ionicons
-            name={state === 'playing' ? 'stop-circle' : 'volume-medium-outline'}
+            name={state === 'playing' || state === 'paused' ? 'stop-circle' : 'volume-medium-outline'}
             size={22}
             color={theme.colors.text}
           />
         )}
       </Pressable>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={t('common.readAloudSpeed', { rate })}
-        hitSlop={READ_ALOUD_HIT_SLOP}
-        onPress={handleCycleRate}
-        style={({ pressed }) => [styles.readAloudRate, pressed && styles.copyActionPressed]}
-      >
-        <Text style={[styles.readAloudRateText, { color: theme.colors.textSecondary }]}>
-          {rate}×
-        </Text>
-      </Pressable>
+      {controlsVisible && (
+        <Animated.View
+          entering={controlsEntering}
+          exiting={controlsExiting}
+          style={styles.readAloudControls}
+        >
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={state === 'paused' ? t('common.readAloudResume') : t('common.readAloudPause')}
+            hitSlop={READ_ALOUD_HIT_SLOP}
+            onPress={handleTogglePause}
+            style={({ pressed }) => [styles.readAloudButton, pressed && styles.copyActionPressed]}
+          >
+            <Ionicons
+              name={state === 'paused' ? 'play' : 'pause'}
+              size={18}
+              color={theme.colors.text}
+            />
+          </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={t('common.readAloudSpeed', { rate })}
+            hitSlop={READ_ALOUD_HIT_SLOP}
+            onPress={handleCycleRate}
+            style={({ pressed }) => [styles.readAloudButton, pressed && styles.copyActionPressed]}
+          >
+            <Text style={[styles.readAloudRateText, { color: theme.colors.textSecondary }]}>
+              {rate}×
+            </Text>
+          </Pressable>
+        </Animated.View>
+      )}
     </>
   );
 }
@@ -667,8 +769,8 @@ const styles = StyleSheet.create((theme) => ({
   copyAction: {
     // No width, so the box shrink-wraps the glyph and its left edge lands on the
     // same x as the markdown text above it. hitSlop carries the touch target.
-    alignSelf: 'flex-start',
-    height: 20,
+    // Height matches the read-aloud buttons so all glyphs share one baseline.
+    height: 28,
     justifyContent: 'center',
     // Sits fully below the last markdown block's trailing margin, clear of the
     // reply text.
@@ -678,7 +780,6 @@ const styles = StyleSheet.create((theme) => ({
     opacity: 0.5,
   },
   readAloudAction: {
-    alignSelf: 'flex-start',
     height: 28,
     width: 28,
     borderRadius: 14,
@@ -691,14 +792,18 @@ const styles = StyleSheet.create((theme) => ({
     // allein war laut Rueckmeldung zu unauffaellig.
     backgroundColor: theme.colors.surfaceHigh,
   },
-  readAloudRate: {
-    alignSelf: 'flex-start',
+  readAloudControls: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  readAloudButton: {
     height: 28,
+    minWidth: 28,
     paddingHorizontal: 6,
     borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 0,
   },
   readAloudRateText: {
     fontSize: 13,

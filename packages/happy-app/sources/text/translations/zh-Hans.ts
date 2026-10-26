@@ -61,6 +61,8 @@ export const zhHans: TranslationStructure = {
         copy: '复制',
         readAloud: '朗读',
         readAloudStop: '停止朗读',
+        readAloudPause: '暂停朗读',
+        readAloudResume: '继续朗读',
         readAloudFailed: '无法朗读消息',
         readAloudSpeed: ({ rate }: { rate: number }) => `播放速度: ${rate}×`,
         readAloudTimeout: 'TTS服务器未及时响应。',
