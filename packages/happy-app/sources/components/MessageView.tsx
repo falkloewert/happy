@@ -295,10 +295,11 @@ function AgentTextBlock(props: {
 }
 
 // ENTWURF, nicht fertig: Endpoint muss aus Settings kommen (eigener TTS-Server),
-// nicht hardcoded, und braucht Auth + HTTPS vor echtem Einsatz (siehe offene
-// Fragen - Android blockiert Klartext-HTTP in Release-Builds). Server-Entwurf
-// dazu: scratchpad/piper-test/server.js
-const TTS_ENDPOINT = 'http://localhost:5055/tts';
+// nicht hardcoded, und braucht Auth + HTTPS vor echtem Einsatz (siehe
+// WUENSCHE.md). Fuer jetzt: docker01-LAN-IP + Cleartext-Ausnahme (siehe
+// app.config.js expo-build-properties), nur im selben WLAN erreichbar.
+// Server-Entwurf dazu: tools/tts-dev/server.js
+const TTS_ENDPOINT = 'http://192.168.178.11:5055/tts';
 const TTS_TIMEOUT_MS = 15000;
 
 function MessageReadAloudButton(props: { text: string }) {

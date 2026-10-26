@@ -135,6 +135,17 @@ export default {
         },
         plugins: [
             require("./plugins/withEinkCompatibility.js"),
+            // FORK-ONLY, Entwurf: erlaubt Klartext-HTTP fuer den lokalen WLAN-Test
+            // des Vorlesen-Buttons gegen den Piper-Server auf docker01. Vor echtem
+            // Einsatz durch HTTPS ersetzen, siehe WUENSCHE.md.
+            [
+                "expo-build-properties",
+                {
+                    android: {
+                        usesCleartextTraffic: true
+                    }
+                }
+            ],
             [
                 "expo-router",
                 {
@@ -208,7 +219,8 @@ export default {
             ]
         ],
         updates: {
-            url: "https://u.expo.dev/4558dd3d-cd5a-47cd-bad9-e591a241cc06",
+            // FORK-ONLY: zeigte noch auf bulkacorps Upstream-Projekt-ID.
+            url: "https://u.expo.dev/67daec3a-3c64-482e-bf31-bc293ada3917",
             requestHeaders: {
                 "expo-channel-name": "production"
             }

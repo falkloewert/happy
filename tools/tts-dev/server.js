@@ -63,6 +63,8 @@ const server = http.createServer((req, res) => {
   });
 });
 
-// Nur localhost: kein Zugriff aus dem LAN. Fuers echte Handy-Deployment braucht
-// es ohnehin Auth + HTTPS (siehe offene Fragen), hier nur Schutz fuer den Testlauf.
-server.listen(PORT, "127.0.0.1", () => console.log(`TTS-Entwurf hört auf 127.0.0.1:${PORT}`));
+// ENTWURF, nur fuer den WLAN-Test: bewusst offen fuers LAN (0.0.0.0), kein Auth.
+// Jeder im selben Netz kann Piper-Prozesse anstossen. Nicht so stehen lassen -
+// vor echtem Einsatz durch die HTTPS+Auth-Variante ersetzen (siehe WUENSCHE.md).
+const BIND = process.env.BIND || "0.0.0.0";
+server.listen(PORT, BIND, () => console.log(`TTS-Entwurf hört auf ${BIND}:${PORT}`));

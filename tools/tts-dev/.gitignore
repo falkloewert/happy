@@ -1,0 +1,3 @@
+piper/
+*.onnx
+*.onnx.json
