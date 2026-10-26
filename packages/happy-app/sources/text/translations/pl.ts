@@ -70,6 +70,7 @@ export const pl: TranslationStructure = {
         copy: 'Kopiuj',
         readAloud: 'Odczytaj',
         readAloudFailed: 'Nie udalo sie odczytac wiadomosci',
+        readAloudSpeed: ({ rate }: { rate: number }) => `Szybkosc: ${rate}×`,
         readAloudTimeout: 'Serwer TTS nie odpowiedzial na czas.',
         scanning: 'Skanowanie...',
         urlPlaceholder: 'https://example.com',

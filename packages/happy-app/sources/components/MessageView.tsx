@@ -12,7 +12,7 @@ import { Metadata } from "@/sync/storageTypes";
 import { ToolView } from "./tools/ToolView";
 import { AgentEvent, SessionAuthor } from "@/sync/typesRaw";
 import { sync } from '@/sync/sync';
-import { useSetting } from '@/sync/storage';
+import { useSetting, useSettingMutable } from '@/sync/storage';
 import { Option } from './markdown/MarkdownView';
 import { layout } from "./layout";
 import { Typography } from '@/constants/Typography';
@@ -302,9 +302,12 @@ function AgentTextBlock(props: {
 const TTS_ENDPOINT = 'http://192.168.178.11:5055/tts';
 const TTS_TIMEOUT_MS = 15000;
 
+const READ_ALOUD_RATES = [1, 1.5, 2] as const;
+
 function MessageReadAloudButton(props: { text: string }) {
   const { theme } = useUnistyles();
   const [state, setState] = React.useState<'idle' | 'loading' | 'playing' | 'error'>('idle');
+  const [rate, setRate] = useSettingMutable('readAloudPlaybackRate');
   const player = useAudioPlayer();
   const status = useAudioPlayerStatus(player);
   // Ref statt State als Sperre: State aus der Closure wuerde bei zwei schnellen
@@ -356,6 +359,7 @@ function MessageReadAloudButton(props: { text: string }) {
       file.write(bytes);
       fileRef.current = file;
       player.replace(file.uri);
+      player.setPlaybackRate(rate, 'high');
       player.play();
       setState('playing');
       // busyRef bleibt true, bis didJustFinish oder ein Fehler es zuruecksetzt -
@@ -372,32 +376,53 @@ function MessageReadAloudButton(props: { text: string }) {
     } finally {
       clearTimeout(timeout);
     }
-  }, [props.text, player, cleanupFile]);
+  }, [props.text, player, cleanupFile, rate]);
+
+  const handleCycleRate = React.useCallback(() => {
+    const next = READ_ALOUD_RATES[(READ_ALOUD_RATES.indexOf(rate as typeof READ_ALOUD_RATES[number]) + 1) % READ_ALOUD_RATES.length];
+    setRate(next);
+    // Takes effect immediately if something is already playing; the next
+    // playback picks it up from the setting either way.
+    if (state === 'playing') player.setPlaybackRate(next, 'high');
+  }, [rate, setRate, state, player]);
 
   return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={t('common.readAloud')}
-      hitSlop={READ_ALOUD_HIT_SLOP}
-      onPress={handlePress}
-      style={({ pressed }) => [
-        styles.readAloudAction,
-        state !== 'idle' && styles.readAloudActionActive,
-        pressed && styles.copyActionPressed,
-      ]}
-    >
-      {state === 'loading' ? (
-        <ActivityIndicator size="small" color={theme.colors.text} />
-      ) : state === 'error' ? (
-        <Ionicons name="alert-circle" size={22} color={theme.colors.status.error} />
-      ) : (
-        <Ionicons
-          name={state === 'playing' ? 'volume-high' : 'volume-medium-outline'}
-          size={22}
-          color={theme.colors.text}
-        />
-      )}
-    </Pressable>
+    <>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={t('common.readAloud')}
+        hitSlop={READ_ALOUD_HIT_SLOP}
+        onPress={handlePress}
+        style={({ pressed }) => [
+          styles.readAloudAction,
+          state !== 'idle' && styles.readAloudActionActive,
+          pressed && styles.copyActionPressed,
+        ]}
+      >
+        {state === 'loading' ? (
+          <ActivityIndicator size="small" color={theme.colors.text} />
+        ) : state === 'error' ? (
+          <Ionicons name="alert-circle" size={22} color={theme.colors.status.error} />
+        ) : (
+          <Ionicons
+            name={state === 'playing' ? 'volume-high' : 'volume-medium-outline'}
+            size={22}
+            color={theme.colors.text}
+          />
+        )}
+      </Pressable>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={t('common.readAloudSpeed', { rate })}
+        hitSlop={READ_ALOUD_HIT_SLOP}
+        onPress={handleCycleRate}
+        style={({ pressed }) => [styles.readAloudRate, pressed && styles.copyActionPressed]}
+      >
+        <Text style={[styles.readAloudRateText, { color: theme.colors.textSecondary }]}>
+          {rate}×
+        </Text>
+      </Pressable>
+    </>
   );
 }
 
@@ -656,6 +681,19 @@ const styles = StyleSheet.create((theme) => ({
     // Sichtbarer Hintergrund waehrend geladen/abgespielt wird - Icon-Wechsel
     // allein war laut Rueckmeldung zu unauffaellig.
     backgroundColor: theme.colors.surfaceHigh,
+  },
+  readAloudRate: {
+    alignSelf: 'flex-start',
+    height: 28,
+    paddingHorizontal: 6,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 0,
+  },
+  readAloudRateText: {
+    fontSize: 13,
+    ...Typography.default('semiBold'),
   },
   userCopyTarget: {
     alignItems: 'flex-end',

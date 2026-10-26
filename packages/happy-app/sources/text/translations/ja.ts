@@ -61,6 +61,7 @@ export const ja: TranslationStructure = {
         copy: 'コピー',
         readAloud: '読み上げ',
         readAloudFailed: 'メッセージを読み上げられませんでした',
+        readAloudSpeed: ({ rate }: { rate: number }) => `再生速度: ${rate}×`,
         readAloudTimeout: 'TTSサーバーが時間内に応答しませんでした。',
         scanning: 'スキャン中...',
         urlPlaceholder: 'https://example.com',

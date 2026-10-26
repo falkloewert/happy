@@ -70,6 +70,7 @@ export const ru: TranslationStructure = {
         copy: 'Копировать',
         readAloud: 'Прочитать вслух',
         readAloudFailed: 'Не удалось прочитать сообщение вслух',
+        readAloudSpeed: ({ rate }: { rate: number }) => `Скорость: ${rate}×`,
         readAloudTimeout: 'Сервер TTS не ответил вовремя.',
         scanning: 'Сканирование...',
         urlPlaceholder: 'https://example.com',
