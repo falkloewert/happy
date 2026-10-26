@@ -8,7 +8,8 @@ import { ItemGroup } from '@/components/ItemGroup';
 import { ItemList } from '@/components/ItemList';
 import { Switch } from '@/components/Switch';
 import { UsageBar } from '@/components/usage/UsageBar';
-import { useSettingMutable, useEntitlement, useLocalSetting, useLocalSettingMutable, useSetting } from '@/sync/storage';
+import { useSettingMutable, useEntitlement, useLocalSetting, useLocalSettingMutable, useSetting, useAllMachines } from '@/sync/storage';
+import { machineReadAloudStatus } from '@/sync/ops';
 import { useAuth } from '@/auth/AuthContext';
 import { findLanguageByCode, getLanguageDisplayName, LANGUAGES } from '@/constants/Languages';
 import { fetchVoiceUsage, type VoiceUsageResponse } from '@/sync/apiVoice';
@@ -23,6 +24,39 @@ function formatVoiceTime(totalSeconds: number): string {
     const mins = Math.floor(totalSeconds / 60);
     const secs = totalSeconds % 60;
     return `${mins}m ${secs}s`;
+}
+
+// Fork feature: which online machines have Piper read-aloud set up, and with which voice.
+function ReadAloudMachinesGroup() {
+    const machines = useAllMachines();
+    const [voices, setVoices] = React.useState<Record<string, string | null>>({});
+    // Keyed by ids: machine objects change on every heartbeat, the list rarely does.
+    const machineIds = machines.map((m) => m.id).join(',');
+
+    React.useEffect(() => {
+        for (const id of machineIds.split(',').filter(Boolean)) {
+            machineReadAloudStatus(id)
+                .then((r) => setVoices((v) => ({ ...v, [id]: r.voice })))
+                // Older daemons have no such method: same as not set up.
+                .catch(() => setVoices((v) => ({ ...v, [id]: null })));
+        }
+    }, [machineIds]);
+
+    if (machines.length === 0) return null;
+    return (
+        <ItemGroup title={t('settingsVoice.readAloudTitle')} footer={t('settingsVoice.readAloudFooter')}>
+            {machines.map((m) => (
+                <Item
+                    key={m.id}
+                    title={m.metadata?.displayName || m.metadata?.host || m.id}
+                    icon={<Ionicons name="volume-medium-outline" size={29} color="#34C759" />}
+                    detail={m.id in voices ? (voices[m.id] ?? t('settingsVoice.readAloudNotConfigured')) : undefined}
+                    rightElement={m.id in voices ? undefined : <ActivityIndicator />}
+                    showChevron={false}
+                />
+            ))}
+        </ItemGroup>
+    );
 }
 
 export default React.memo(function VoiceSettingsScreen() {
@@ -270,6 +304,8 @@ export default React.memo(function VoiceSettingsScreen() {
                     />
                 </ItemGroup>
             )}
+
+            <ReadAloudMachinesGroup />
         </ItemList>
     );
 });
