@@ -16,9 +16,12 @@ echtes Mehrfach-Feature-Projekt geworden.
 
 | Branch | Stand | Anfassen? |
 |---|---|---|
-| `fork/falk-features` | Vorlesen-Button (WLAN-Prototyp, Piper TTS), Zeitstempel, Stop-Funktion, Geschwindigkeitsregler (1x/1.5x/2x). Alles getestet auf echtem Android-Geraet per EAS-Cloud-Build. Gepusht. | Ja, Haupt-Arbeitsbranch |
+| `main` | Alles aus `fork/falk-features` + `feature/self-hosted-tts` (Fast-Forward am 2026-10-26). Das ist der Stand, der im Preview-Kanal ausgeliefert wird. | Ja, Hauptbranch |
+| `fork/falk-features` | Aelterer Stand, vollstaendig in `main` enthalten. | Nur noch Historie |
+| `feature/self-hosted-tts` | Aelterer Stand, vollstaendig in `main` enthalten. | Nur noch Historie |
 | `feature/message-timestamps` | Nur die Zeitstempel-Aenderung, sauber extrahiert, per `ponytail-review` bereinigt. **Offener Pull Request:** https://github.com/slopus/happy/pull/1922 | **Nicht anfassen**, außer um auf PR-Feedback zu reagieren |
-| `feature/self-hosted-tts` | Ersetzt den WLAN-Prototyp durch eine RPC-basierte Loesung (siehe unten). Gepusht, mit `fork/falk-features` gemerged (Cache, Pause, 1,25x, Chunk-Transport in einem Branch). | Ja, jetzt der Haupt-Arbeitsbranch |
+| `pr/read-aloud` | Sauberer PR-Branch **ab `upstream/main`** nur mit Vorlesen (24 Dateien, +758/−7). **Offener Pull Request:** https://github.com/slopus/happy/pull/1923 | Ja, fuer Review-Feedback |
+| `pr/profile-null` | Zwei Zeilen: GitHub-Profil mit `name: null` / `email: null`. **Offener Pull Request:** https://github.com/slopus/happy/pull/1924 | Ja, fuer Review-Feedback |
 
 ## Warum WLAN-Prototyp → RPC (wichtigste Architekturentscheidung)
 
@@ -67,17 +70,23 @@ und sollten entfernt werden.
 - `falkloewert`: nur fuer Admin-Schritte (Fork anlegen, Collaborator einladen) kurz
   reingewechselt, danach sofort zurueck auf `falk-agent`.
 
-## Offene Punkte (Stand dieser Uebergabe)
+## Offene Punkte (Stand 2026-10-26, Ende der Session)
 
-1. `feature/self-hosted-tts` fertigstellen (laeuft/lief auf `docker01`), dann review +
-   pushen + auf echtem Geraet testen (RPC-Kanal, nicht WLAN-abhaengig).
-2. Ein OTA-Update fuer den Stop-Fix (Branch `fork/falk-features`, Commit `247f9736`) ist
-   wegen des OOM-Kills fehlgeschlagen und muss erneut angestossen werden — entweder von
-   `docker01` (einzeln, nicht parallel zu anderem) oder von hier aus.
-3. Sobald `feature/self-hosted-tts` steht: `fork/falk-features` aufraeumen (WLAN-Hack-Commits
-   obsolet).
-4. `feature/message-timestamps`-PR (https://github.com/slopus/happy/pull/1922) beobachten,
-   auf Review-Kommentare reagieren.
+1. Drei PRs warten auf Upstream: [#1922](https://github.com/slopus/happy/pull/1922)
+   (Zeitstempel), [#1923](https://github.com/slopus/happy/pull/1923) (Vorlesen),
+   [#1924](https://github.com/slopus/happy/pull/1924) (Profil-Fix). 1922 und 1923 fassen
+   dieselbe Aktionszeile in `MessageView.tsx` an — wer zuerst gemerged wird, beim anderen
+   nachziehen.
+2. OTA in den Preview-Kanal ist raus (Commit `428bbdcd`, Runtime 21). Ob die installierte
+   Preview-App es zieht, war am Sessionende noch nicht bestaetigt: nur pruefbar, ob nach
+   einem **kalten** Neustart der App die Release-Notiz "October 26 - Read answers aloud"
+   erscheint. Wenn nicht, hat die APK eine andere Runtime-Version → nativer Preview-Build
+   (`eas build --profile preview --platform android --non-interactive`).
+3. Der alte WLAN-TTS-Server (`tools/tts-dev/server.js`, Port 5055 auf `docker01`) ist
+   gestoppt und wird von der App nicht mehr benutzt; die zwei Stimmen liegen weiter in
+   `~/tts-dev/` fuer einen schnellen `curl`-Test.
+4. Die Zeitstempel-Aenderung lebt in zwei PRs (1922 sauber, 1923 ohne) — nichts zu tun,
+   ausser Review-Kommentare zu beantworten.
 
 ## Weitere Doku im Repo
 
