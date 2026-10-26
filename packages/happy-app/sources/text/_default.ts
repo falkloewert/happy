@@ -58,6 +58,8 @@ export const en = {
         copied: 'Copied',
         copy: 'Copy',
         readAloud: 'Read aloud', // Fork-only feature, not upstream
+        readAloudFailed: 'Could not read message aloud',
+        readAloudTimeout: 'The TTS server did not respond in time.',
         scanning: 'Scanning...',
         urlPlaceholder: 'https://example.com',
         home: 'Home',

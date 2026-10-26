@@ -72,6 +72,8 @@ export const en: TranslationStructure = {
         version: 'Version',
         copy: 'Copy',
         readAloud: 'Read aloud',
+        readAloudFailed: 'Could not read message aloud',
+        readAloudTimeout: 'The TTS server did not respond in time.',
         copied: 'Copied',
         scanning: 'Scanning...',
         urlPlaceholder: 'https://example.com',

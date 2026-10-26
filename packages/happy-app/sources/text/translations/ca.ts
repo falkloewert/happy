@@ -58,6 +58,8 @@ export const ca: TranslationStructure = {
         copied: 'Copiat',
         copy: 'Copiar',
         readAloud: 'Llegir en veu alta',
+        readAloudFailed: 'No se pudo leer el mensaje en voz alta',
+        readAloudTimeout: 'El servidor TTS no respondio a tiempo.',
         scanning: 'Escanejant...',
         urlPlaceholder: 'https://exemple.com',
         home: 'Inici',

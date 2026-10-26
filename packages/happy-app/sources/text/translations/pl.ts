@@ -69,6 +69,8 @@ export const pl: TranslationStructure = {
         copied: 'Skopiowano',
         copy: 'Kopiuj',
         readAloud: 'Odczytaj',
+        readAloudFailed: 'Nie udalo sie odczytac wiadomosci',
+        readAloudTimeout: 'Serwer TTS nie odpowiedzial na czas.',
         scanning: 'Skanowanie...',
         urlPlaceholder: 'https://example.com',
         home: 'Główna',

@@ -60,6 +60,8 @@ export const zhHant: TranslationStructure = {
         copied: '已複製',
         copy: '複製',
         readAloud: '朗讀',
+        readAloudFailed: '無法朗讀訊息',
+        readAloudTimeout: 'TTS伺服器未及時回應。',
         scanning: '掃描中...',
         urlPlaceholder: 'https://example.com',
         home: '首頁',

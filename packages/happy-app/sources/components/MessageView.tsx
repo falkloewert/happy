@@ -22,6 +22,7 @@ import { LongPressCopyable } from './LongPressCopyable';
 import { formatSessionListTimestamp } from '@/utils/sessionListTimestamp';
 import { useElapsedTime } from '@/hooks/useElapsedTime';
 import { stripMarkdown } from '@/utils/messageUtils';
+import { Modal } from '@/modal';
 
 
 export const MessageView = React.memo((props: {
@@ -303,13 +304,18 @@ const TTS_TIMEOUT_MS = 15000;
 
 function MessageReadAloudButton(props: { text: string }) {
   const { theme } = useUnistyles();
-  const [state, setState] = React.useState<'idle' | 'loading' | 'playing'>('idle');
+  const [state, setState] = React.useState<'idle' | 'loading' | 'playing' | 'error'>('idle');
   const player = useAudioPlayer();
   const status = useAudioPlayerStatus(player);
   // Ref statt State als Sperre: State aus der Closure wuerde bei zwei schnellen
   // Taps vor dem ersten Re-Render noch 'idle' lesen und zwei Requests ausloesen.
   const busyRef = React.useRef(false);
   const fileRef = React.useRef<File | null>(null);
+  const errorResetRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  React.useEffect(() => () => {
+    if (errorResetRef.current) clearTimeout(errorResetRef.current);
+  }, []);
 
   const cleanupFile = React.useCallback(() => {
     try {
@@ -357,7 +363,12 @@ function MessageReadAloudButton(props: { text: string }) {
     } catch (error) {
       console.error('Read-aloud request failed:', error);
       busyRef.current = false;
-      setState('idle');
+      setState('error');
+      errorResetRef.current = setTimeout(() => setState('idle'), 2000);
+      const detail = controller.signal.aborted
+        ? t('common.readAloudTimeout')
+        : error instanceof Error ? error.message : String(error);
+      Modal.alert(t('common.readAloudFailed'), detail);
     } finally {
       clearTimeout(timeout);
     }
@@ -377,6 +388,8 @@ function MessageReadAloudButton(props: { text: string }) {
     >
       {state === 'loading' ? (
         <ActivityIndicator size="small" color={theme.colors.text} />
+      ) : state === 'error' ? (
+        <Ionicons name="alert-circle" size={22} color={theme.colors.status.error} />
       ) : (
         <Ionicons
           name={state === 'playing' ? 'volume-high' : 'volume-medium-outline'}

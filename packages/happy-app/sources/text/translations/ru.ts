@@ -69,6 +69,8 @@ export const ru: TranslationStructure = {
         copied: 'Скопировано',
         copy: 'Копировать',
         readAloud: 'Прочитать вслух',
+        readAloudFailed: 'Не удалось прочитать сообщение вслух',
+        readAloudTimeout: 'Сервер TTS не ответил вовремя.',
         scanning: 'Сканирование...',
         urlPlaceholder: 'https://example.com',
         home: 'Главная',
