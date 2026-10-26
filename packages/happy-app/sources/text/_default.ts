@@ -58,6 +58,7 @@ export const en = {
         copied: 'Copied',
         copy: 'Copy',
         readAloud: 'Read aloud', // Fork-only feature, not upstream
+        readAloudStop: 'Stop reading aloud',
         readAloudFailed: 'Could not read message aloud',
         readAloudSpeed: ({ rate }: { rate: number }) => `Playback speed: ${rate}×`,
         readAloudTimeout: 'The TTS server did not respond in time.',

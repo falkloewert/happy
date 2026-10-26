@@ -60,6 +60,7 @@ export const ja: TranslationStructure = {
         copied: 'コピーしました',
         copy: 'コピー',
         readAloud: '読み上げ',
+        readAloudStop: '読み上げを停止',
         readAloudFailed: 'メッセージを読み上げられませんでした',
         readAloudSpeed: ({ rate }: { rate: number }) => `再生速度: ${rate}×`,
         readAloudTimeout: 'TTSサーバーが時間内に応答しませんでした。',

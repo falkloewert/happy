@@ -340,6 +340,15 @@ function MessageReadAloudButton(props: { text: string }) {
   }, [status.didJustFinish, cleanupFile]);
 
   const handlePress = React.useCallback(async () => {
+    if (state === 'playing') {
+      // Tap again while playing stops it, instead of being silently
+      // swallowed by the busy-lock below.
+      player.pause();
+      busyRef.current = false;
+      setState('idle');
+      cleanupFile();
+      return;
+    }
     if (busyRef.current) return;
     busyRef.current = true;
     setState('loading');
@@ -376,7 +385,7 @@ function MessageReadAloudButton(props: { text: string }) {
     } finally {
       clearTimeout(timeout);
     }
-  }, [props.text, player, cleanupFile, rate]);
+  }, [state, props.text, player, cleanupFile, rate]);
 
   const handleCycleRate = React.useCallback(() => {
     const next = READ_ALOUD_RATES[(READ_ALOUD_RATES.indexOf(rate as typeof READ_ALOUD_RATES[number]) + 1) % READ_ALOUD_RATES.length];
@@ -390,7 +399,7 @@ function MessageReadAloudButton(props: { text: string }) {
     <>
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel={t('common.readAloud')}
+        accessibilityLabel={state === 'playing' ? t('common.readAloudStop') : t('common.readAloud')}
         hitSlop={READ_ALOUD_HIT_SLOP}
         onPress={handlePress}
         style={({ pressed }) => [
@@ -405,7 +414,7 @@ function MessageReadAloudButton(props: { text: string }) {
           <Ionicons name="alert-circle" size={22} color={theme.colors.status.error} />
         ) : (
           <Ionicons
-            name={state === 'playing' ? 'volume-high' : 'volume-medium-outline'}
+            name={state === 'playing' ? 'stop-circle' : 'volume-medium-outline'}
             size={22}
             color={theme.colors.text}
           />
