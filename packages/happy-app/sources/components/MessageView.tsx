@@ -303,7 +303,7 @@ function AgentTextBlock(props: {
 const TTS_ENDPOINT = 'http://192.168.178.11:5055/tts';
 const TTS_TIMEOUT_MS = 15000;
 
-const READ_ALOUD_RATES = [1, 1.5, 2] as const;
+const READ_ALOUD_RATES = [1, 1.25, 1.5, 2] as const;
 
 // Erneutes Abspielen derselben Antwort soll nicht wieder auf den TTS-Server
 // warten. Die zuletzt erzeugten Dateien bleiben darum kurz liegen, statt beim
