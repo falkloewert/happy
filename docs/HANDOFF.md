@@ -77,11 +77,9 @@ und sollten entfernt werden.
    [#1924](https://github.com/slopus/happy/pull/1924) (Profil-Fix). 1922 und 1923 fassen
    dieselbe Aktionszeile in `MessageView.tsx` an — wer zuerst gemerged wird, beim anderen
    nachziehen.
-2. OTA in den Preview-Kanal ist raus (Commit `428bbdcd`, Runtime 21). Ob die installierte
-   Preview-App es zieht, war am Sessionende noch nicht bestaetigt: nur pruefbar, ob nach
-   einem **kalten** Neustart der App die Release-Notiz "October 26 - Read answers aloud"
-   erscheint. Wenn nicht, hat die APK eine andere Runtime-Version → nativer Preview-Build
-   (`eas build --profile preview --platform android --non-interactive`).
+2. OTA in den Preview-Kanal ist raus (Commit `428bbdcd`, Runtime 21) und auf dem Geraet
+   bestaetigt: die Release-Notiz "October 26 - Read answers aloud" erscheint beim Kaltstart,
+   die installierte Preview-APK passt also zu Runtime 21.
 3. Der alte WLAN-TTS-Server (`tools/tts-dev/server.js`, Port 5055 auf `docker01`) ist
    gestoppt und wird von der App nicht mehr benutzt; die zwei Stimmen liegen weiter in
    `~/tts-dev/` fuer einen schnellen `curl`-Test.
