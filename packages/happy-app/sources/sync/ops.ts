@@ -654,6 +654,35 @@ export async function machineStopDaemon(machineId: string): Promise<{ message: s
 }
 
 /**
+ * Fork feature "read aloud": synthesize speech with Piper on the machine
+ * (happy-cli src/voice/registerReadAloudHandler.ts). `not-configured` means the
+ * daemon is there but `happy voice setup` never ran on it.
+ */
+export type ReadAloudResult =
+    | { ok: true; audioBase64: string; mimeType: string }
+    | { ok: false; reason: 'not-configured' };
+
+export async function machineReadAloud(machineId: string, text: string): Promise<ReadAloudResult> {
+    const result = await apiSocket.machineRPC<ReadAloudResult | { error: string }, { text: string }>(
+        machineId,
+        'read-aloud',
+        { text }
+    );
+    if ('error' in result) throw new Error(result.error);
+    return result;
+}
+
+export async function machineReadAloudStatus(machineId: string): Promise<{ voice: string | null }> {
+    const result = await apiSocket.machineRPC<{ voice: string | null } | { error: string }, {}>(
+        machineId,
+        'read-aloud-status',
+        {}
+    );
+    if ('error' in result) throw new Error(result.error);
+    return result;
+}
+
+/**
  * Execute a bash command on a specific machine
  */
 export async function machineBash(

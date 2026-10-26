@@ -31,6 +31,31 @@ export function stripMarkdown(text: string): string {
 }
 
 /**
+ * Splits plain text into read-aloud chunks of at most `maxLength` characters,
+ * at sentence ends where possible, else between words. Each chunk is one RPC
+ * round trip: short enough that Piper answers well inside the server's 30s RPC
+ * timeout and the WAV stays far below its 8 MiB message cap (~300 chars ≈ 15s
+ * of speech ≈ 1.3 MB on the wire), and playback can start after the first one.
+ */
+export function splitForReadAloud(text: string, maxLength = 300): string[] {
+  // Only punctuation followed by whitespace ends a sentence, so "3.14" stays whole.
+  const pieces = text.replace(/([.!?])\s+/g, '$1\n').split('\n')
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .flatMap((s) => s.length > maxLength ? s.split(' ') : [s]);
+  const chunks: string[] = [];
+  for (const piece of pieces) {
+    const last = chunks[chunks.length - 1];
+    if (last !== undefined && last.length + 1 + piece.length <= maxLength) {
+      chunks[chunks.length - 1] = `${last} ${piece}`;
+    } else {
+      chunks.push(piece);
+    }
+  }
+  return chunks;
+}
+
+/**
  * Gets a readable summary of tool calls
  */
 function getToolSummary(tools: ToolCall[]): string {

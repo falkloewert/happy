@@ -3,7 +3,7 @@ import { ActivityIndicator, Platform, Pressable, Text, View } from "react-native
 import { StyleSheet, useUnistyles } from 'react-native-unistyles';
 import { Ionicons } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
-import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
+import { useAudioPlayer } from 'expo-audio';
 import { File, Paths } from 'expo-file-system';
 import { MarkdownView } from "./markdown/MarkdownView";
 import { t } from '@/text';
@@ -21,7 +21,8 @@ import { resolveUserMessageBubbleColor } from '@/utils/userMessageBubbleColor';
 import { LongPressCopyable } from './LongPressCopyable';
 import { formatSessionListTimestamp } from '@/utils/sessionListTimestamp';
 import { useElapsedTime } from '@/hooks/useElapsedTime';
-import { stripMarkdown } from '@/utils/messageUtils';
+import { splitForReadAloud, stripMarkdown } from '@/utils/messageUtils';
+import { machineReadAloud } from '@/sync/ops';
 import { Modal } from '@/modal';
 
 
@@ -71,7 +72,7 @@ function RenderBlock(props: {
       );
 
     case 'agent-text':
-      return <AgentTextBlock message={props.message} sessionId={props.sessionId} isLatest={!!props.isLatestAgentMessage} />;
+      return <AgentTextBlock message={props.message} sessionId={props.sessionId} machineId={props.metadata?.machineId} isLatest={!!props.isLatestAgentMessage} />;
 
     case 'tool-call':
       return <ToolCallBlock
@@ -270,6 +271,7 @@ function UserTextBlock(props: {
 function AgentTextBlock(props: {
   message: AgentTextMessage;
   sessionId: string;
+  machineId?: string;
   isLatest: boolean;
 }) {
   const handleOptionPress = React.useCallback((option: Option) => {
@@ -286,7 +288,7 @@ function AgentTextBlock(props: {
       <MarkdownView markdown={props.message.text} onOptionPress={handleOptionPress} sessionId={props.sessionId} />
       <View style={styles.messageActionsRow}>
         <MessageCopyButton text={props.message.text} />
-        <MessageReadAloudButton text={props.message.text} />
+        {props.machineId && <MessageReadAloudButton text={props.message.text} machineId={props.machineId} />}
         {props.isLatest && <MessageTimestamp createdAt={props.message.createdAt} relative />}
         <MessageTimestamp createdAt={props.message.createdAt} relative={false} />
       </View>
@@ -294,89 +296,96 @@ function AgentTextBlock(props: {
   );
 }
 
-// ENTWURF, nicht fertig: Endpoint muss aus Settings kommen (eigener TTS-Server),
-// nicht hardcoded, und braucht Auth + HTTPS vor echtem Einsatz (siehe
-// WUENSCHE.md). Fuer jetzt: docker01-LAN-IP + Cleartext-Ausnahme (siehe
-// app.config.js expo-build-properties), nur im selben WLAN erreichbar.
-// Server-Entwurf dazu: tools/tts-dev/server.js
-const TTS_ENDPOINT = 'http://192.168.178.11:5055/tts';
-const TTS_TIMEOUT_MS = 15000;
-
+// Fork feature: Piper runs on the session's machine and answers over Happy's
+// encrypted machine RPC (happy-cli src/voice/), set up there with
+// `happy voice setup`. Long messages go in chunks, see splitForReadAloud.
 const READ_ALOUD_RATES = [1, 1.5, 2] as const;
 
-function MessageReadAloudButton(props: { text: string }) {
+async function synthesizeToFile(machineId: string, text: string, index: number): Promise<File> {
+  const result = await machineReadAloud(machineId, text);
+  if (!result.ok) throw new Error(t('common.readAloudNotConfigured'));
+  const file = new File(Paths.cache, `vorlesen-${Date.now()}-${index}.wav`);
+  file.write(result.audioBase64, { encoding: 'base64' });
+  return file;
+}
+
+function deleteQuietly(file: File | null) {
+  try {
+    file?.delete();
+  } catch {
+    // Datei kann schon weg sein (z.B. OS-Cache-Bereinigung) - egal.
+  }
+}
+
+function MessageReadAloudButton(props: { text: string; machineId: string }) {
   const { theme } = useUnistyles();
   const [state, setState] = React.useState<'idle' | 'loading' | 'playing' | 'error'>('idle');
   const [rate, setRate] = useSettingMutable('readAloudPlaybackRate');
   const player = useAudioPlayer();
-  const status = useAudioPlayerStatus(player);
   // Ref statt State als Sperre: State aus der Closure wuerde bei zwei schnellen
   // Taps vor dem ersten Re-Render noch 'idle' lesen und zwei Requests ausloesen.
   const busyRef = React.useRef(false);
-  const fileRef = React.useRef<File | null>(null);
+  // Later chunks must use a rate changed mid-playback; the press closure only has the old one.
+  const rateRef = React.useRef(rate);
+  rateRef.current = rate;
+  const mountedRef = React.useRef(true);
+  // Resolves the chunk currently playing; also called on unmount so the loop ends.
+  const finishRef = React.useRef<(() => void) | null>(null);
   const errorResetRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
   React.useEffect(() => () => {
+    mountedRef.current = false;
+    finishRef.current?.();
     if (errorResetRef.current) clearTimeout(errorResetRef.current);
   }, []);
 
-  const cleanupFile = React.useCallback(() => {
-    try {
-      fileRef.current?.delete();
-    } catch {
-      // Datei kann schon weg sein (z.B. OS-Cache-Bereinigung) - egal.
-    }
-    fileRef.current = null;
-  }, []);
-
-  React.useEffect(() => () => cleanupFile(), [cleanupFile]);
-
-  React.useEffect(() => {
-    if (status.didJustFinish) {
-      busyRef.current = false;
-      setState('idle');
-      cleanupFile();
-    }
-  }, [status.didJustFinish, cleanupFile]);
+  const playToEnd = React.useCallback((file: File) => new Promise<void>((resolve) => {
+    finishRef.current = resolve;
+    const sub = player.addListener('playbackStatusUpdate', (status) => {
+      if (status.didJustFinish) {
+        sub.remove();
+        resolve();
+      }
+    });
+    player.replace(file.uri);
+    player.setPlaybackRate(rateRef.current, 'high');
+    player.play();
+  }), [player]);
 
   const handlePress = React.useCallback(async () => {
-    if (busyRef.current) return;
+    const chunks = splitForReadAloud(stripMarkdown(props.text));
+    if (busyRef.current || chunks.length === 0) return;
     busyRef.current = true;
     setState('loading');
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), TTS_TIMEOUT_MS);
+    let file: File | null = null;
     try {
-      const res = await fetch(TTS_ENDPOINT, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: stripMarkdown(props.text) }),
-        signal: controller.signal,
-      });
-      if (!res.ok) throw new Error(`TTS fehlgeschlagen: ${res.status}`);
-      const bytes = new Uint8Array(await res.arrayBuffer());
-      cleanupFile();
-      const file = new File(Paths.cache, `vorlesen-${Date.now()}.wav`);
-      file.write(bytes);
-      fileRef.current = file;
-      player.replace(file.uri);
-      player.setPlaybackRate(rate, 'high');
-      player.play();
-      setState('playing');
-      // busyRef bleibt true, bis didJustFinish oder ein Fehler es zuruecksetzt -
-      // verhindert einen zweiten Tap waehrend der Wiedergabe.
+      // Fetch chunk i+1 while chunk i plays, so there is no gap between them.
+      let next = synthesizeToFile(props.machineId, chunks[0], 0);
+      for (let i = 0; i < chunks.length; i++) {
+        file = await next;
+        if (!mountedRef.current) return;
+        if (i + 1 < chunks.length) {
+          next = synthesizeToFile(props.machineId, chunks[i + 1], i + 1);
+          next.catch(() => {}); // handled when awaited; avoids an unhandled-rejection warning meanwhile
+        }
+        setState('playing');
+        await playToEnd(file);
+        deleteQuietly(file);
+        file = null;
+        if (!mountedRef.current) return;
+      }
+      setState('idle');
     } catch (error) {
       console.error('Read-aloud request failed:', error);
-      busyRef.current = false;
+      if (!mountedRef.current) return;
       setState('error');
       errorResetRef.current = setTimeout(() => setState('idle'), 2000);
-      const detail = controller.signal.aborted
-        ? t('common.readAloudTimeout')
-        : error instanceof Error ? error.message : String(error);
-      Modal.alert(t('common.readAloudFailed'), detail);
+      Modal.alert(t('common.readAloudFailed'), error instanceof Error ? error.message : String(error));
     } finally {
-      clearTimeout(timeout);
+      busyRef.current = false;
+      deleteQuietly(file);
     }
-  }, [props.text, player, cleanupFile, rate]);
+  }, [props.text, props.machineId, playToEnd]);
 
   const handleCycleRate = React.useCallback(() => {
     const next = READ_ALOUD_RATES[(READ_ALOUD_RATES.indexOf(rate as typeof READ_ALOUD_RATES[number]) + 1) % READ_ALOUD_RATES.length];

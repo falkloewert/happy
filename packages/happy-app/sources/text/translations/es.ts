@@ -60,7 +60,7 @@ export const es: TranslationStructure = {
         readAloud: 'Leer en voz alta',
         readAloudFailed: 'No se pudo leer el mensaje en voz alta',
         readAloudSpeed: ({ rate }: { rate: number }) => `Velocidad: ${rate}×`,
-        readAloudTimeout: 'El servidor TTS no respondio a tiempo.',
+        readAloudNotConfigured: 'La lectura en voz alta no está configurada en este equipo. Ejecuta allí `happy voice setup`.',
         scanning: 'Escaneando...',
         urlPlaceholder: 'https://ejemplo.com',
         home: 'Inicio',
@@ -721,6 +721,14 @@ export const es: TranslationStructure = {
     },
 
     settingsVoice: {
+
+        // Fork-only: read aloud with Piper on the user's own machine
+
+        readAloudTitle: 'Leer en voz alta',
+
+        readAloudFooter: 'Piper lee los mensajes en tu propio equipo. Elige o cambia la voz allí con `happy voice setup`.',
+
+        readAloudNotConfigured: 'Sin configurar',
         // Voice settings screen
         languageTitle: 'Idioma',
         languageDescription: 'Elige tu idioma preferido para las interacciones con el asistente de voz. Esta configuración se sincroniza en todos tus dispositivos.',

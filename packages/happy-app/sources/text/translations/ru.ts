@@ -71,7 +71,7 @@ export const ru: TranslationStructure = {
         readAloud: 'Прочитать вслух',
         readAloudFailed: 'Не удалось прочитать сообщение вслух',
         readAloudSpeed: ({ rate }: { rate: number }) => `Скорость: ${rate}×`,
-        readAloudTimeout: 'Сервер TTS не ответил вовремя.',
+        readAloudNotConfigured: 'Чтение вслух не настроено на этом компьютере. Выполните там `happy voice setup`.',
         scanning: 'Сканирование...',
         urlPlaceholder: 'https://example.com',
         home: 'Главная',
@@ -739,6 +739,14 @@ export const ru: TranslationStructure = {
     },
 
     settingsVoice: {
+
+        // Fork-only: read aloud with Piper on the user's own machine
+
+        readAloudTitle: 'Чтение вслух',
+
+        readAloudFooter: 'Сообщения озвучивает Piper на вашем компьютере. Голос выбирается там командой `happy voice setup`.',
+
+        readAloudNotConfigured: 'Не настроено',
         // Voice settings screen
         languageTitle: 'Язык',
         languageDescription: 'Выберите предпочтительный язык для взаимодействия с голосовым помощником. Эта настройка синхронизируется на всех ваших устройствах.',

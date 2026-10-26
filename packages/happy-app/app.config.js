@@ -135,17 +135,6 @@ export default {
         },
         plugins: [
             require("./plugins/withEinkCompatibility.js"),
-            // FORK-ONLY, Entwurf: erlaubt Klartext-HTTP fuer den lokalen WLAN-Test
-            // des Vorlesen-Buttons gegen den Piper-Server auf docker01. Vor echtem
-            // Einsatz durch HTTPS ersetzen, siehe WUENSCHE.md.
-            [
-                "expo-build-properties",
-                {
-                    android: {
-                        usesCleartextTraffic: true
-                    }
-                }
-            ],
             [
                 "expo-router",
                 {

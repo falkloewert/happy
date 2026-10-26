@@ -62,7 +62,7 @@ export const zhHant: TranslationStructure = {
         readAloud: '朗讀',
         readAloudFailed: '無法朗讀訊息',
         readAloudSpeed: ({ rate }: { rate: number }) => `播放速度: ${rate}×`,
-        readAloudTimeout: 'TTS伺服器未及時回應。',
+        readAloudNotConfigured: '此電腦尚未設定朗讀。請在該電腦上執行 `happy voice setup`。',
         scanning: '掃描中...',
         urlPlaceholder: 'https://example.com',
         home: '首頁',
@@ -721,6 +721,14 @@ export const zhHant: TranslationStructure = {
     },
 
     settingsVoice: {
+
+        // Fork-only: read aloud with Piper on the user's own machine
+
+        readAloudTitle: '朗讀',
+
+        readAloudFooter: '訊息由你自己電腦上的 Piper 朗讀。可在那裡透過 `happy voice setup` 選擇或變更聲音。',
+
+        readAloudNotConfigured: '未設定',
         // Voice settings screen
         languageTitle: '語言',
         languageDescription: '選擇您希望語音助理互動使用的語言。此設定將在您的所有裝置間同步。',
