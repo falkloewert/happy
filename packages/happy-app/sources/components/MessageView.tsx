@@ -1,5 +1,5 @@
 import * as React from "react";
-import { Platform, Pressable, Text, View } from "react-native";
+import { ActivityIndicator, Platform, Pressable, Text, View } from "react-native";
 import { StyleSheet, useUnistyles } from 'react-native-unistyles';
 import { Ionicons } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
@@ -20,7 +20,6 @@ import { parseLocalCommandMessage, isUserSlashCommandEcho } from './parseLocalCo
 import { resolveUserMessageBubbleColor } from '@/utils/userMessageBubbleColor';
 import { LongPressCopyable } from './LongPressCopyable';
 import { formatSessionListTimestamp } from '@/utils/sessionListTimestamp';
-import { formatLastSeen } from '@/utils/sessionUtils';
 import { useElapsedTime } from '@/hooks/useElapsedTime';
 import { stripMarkdown } from '@/utils/messageUtils';
 
@@ -368,21 +367,30 @@ function MessageReadAloudButton(props: { text: string }) {
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={t('common.readAloud')}
-      hitSlop={COPY_HIT_SLOP}
+      hitSlop={READ_ALOUD_HIT_SLOP}
       onPress={handlePress}
       style={({ pressed }) => [
-        styles.copyAction,
+        styles.readAloudAction,
+        state !== 'idle' && styles.readAloudActionActive,
         pressed && styles.copyActionPressed,
       ]}
     >
-      <Ionicons
-        name={state === 'loading' ? 'hourglass-outline' : state === 'playing' ? 'volume-high' : 'volume-medium-outline'}
-        size={16}
-        color={theme.colors.text}
-      />
+      {state === 'loading' ? (
+        <ActivityIndicator size="small" color={theme.colors.text} />
+      ) : (
+        <Ionicons
+          name={state === 'playing' ? 'volume-high' : 'volume-medium-outline'}
+          size={22}
+          color={theme.colors.text}
+        />
+      )}
     </Pressable>
   );
 }
+
+// Groesser als der Copy-Knopf (eigener Hit-Slop) - war laut Rueckmeldung zu
+// klein/unauffaellig, man sah nicht, ob der Tap ueberhaupt ankam.
+const READ_ALOUD_HIT_SLOP = { top: 14, bottom: 14, left: 14, right: 14 };
 
 // The glyph is deliberately small, so widen the touch target well past it.
 const COPY_HIT_SLOP = { top: 14, bottom: 14, left: 14, right: 20 };
@@ -438,13 +446,24 @@ function MessageTimestamp(props: { createdAt: number; relative: boolean }) {
   const { theme } = useUnistyles();
   useElapsedTime(props.relative ? props.createdAt : null);
   const label = props.relative
-    ? formatLastSeen(props.createdAt)
+    ? formatCompactRelative(props.createdAt)
     : formatSessionListTimestamp(props.createdAt);
   return (
     <Text style={[styles.messageTimestamp, { color: theme.colors.textSecondary }]}>
       {label}
     </Text>
   );
+}
+
+// Eigener kompakter Formatter statt des app-weiten formatLastSeen ("4 minutes
+// ago") - auf Wunsch kurz ("4 min"), bewusst nicht ueber die geteilten
+// time.*-i18n-Keys, damit Sessionliste & Co. unveraendert bleiben.
+function formatCompactRelative(createdAt: number): string {
+  const diffMin = Math.floor((Date.now() - createdAt) / 60000);
+  if (diffMin < 1) return t('time.justNow');
+  if (diffMin < 60) return `${diffMin} min`;
+  const diffH = Math.floor(diffMin / 60);
+  return `${diffH} h`;
 }
 
 function AgentEventBlock(props: {
@@ -610,6 +629,20 @@ const styles = StyleSheet.create((theme) => ({
   },
   copyActionPressed: {
     opacity: 0.5,
+  },
+  readAloudAction: {
+    alignSelf: 'flex-start',
+    height: 28,
+    width: 28,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 0,
+  },
+  readAloudActionActive: {
+    // Sichtbarer Hintergrund waehrend geladen/abgespielt wird - Icon-Wechsel
+    // allein war laut Rueckmeldung zu unauffaellig.
+    backgroundColor: theme.colors.surfaceHigh,
   },
   userCopyTarget: {
     alignItems: 'flex-end',
