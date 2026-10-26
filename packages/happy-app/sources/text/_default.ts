@@ -58,6 +58,9 @@ export const en = {
         copied: 'Copied',
         copy: 'Copy',
         readAloud: 'Read aloud', // Fork-only feature, not upstream
+        readAloudStop: 'Stop reading aloud',
+        readAloudPause: 'Pause reading aloud',
+        readAloudResume: 'Resume reading aloud',
         readAloudFailed: 'Could not read message aloud',
         readAloudSpeed: ({ rate }: { rate: number }) => `Playback speed: ${rate}×`,
         readAloudNotConfigured: 'Read aloud is not set up on this computer. Run `happy voice setup` there.',

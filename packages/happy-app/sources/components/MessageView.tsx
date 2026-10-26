@@ -5,6 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
 import { useAudioPlayer } from 'expo-audio';
 import { File, Paths } from 'expo-file-system';
+import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
 import { MarkdownView } from "./markdown/MarkdownView";
 import { t } from '@/text';
 import { Message, UserTextMessage, AgentTextMessage, ToolCallMessage, isOtherParticipantMessage } from "@/sync/typesMessage";
@@ -299,7 +300,62 @@ function AgentTextBlock(props: {
 // Fork feature: Piper runs on the session's machine and answers over Happy's
 // encrypted machine RPC (happy-cli src/voice/), set up there with
 // `happy voice setup`. Long messages go in chunks, see splitForReadAloud.
-const READ_ALOUD_RATES = [1, 1.5, 2] as const;
+const READ_ALOUD_RATES = [1, 1.25, 1.5, 2] as const;
+
+// Erneutes Abspielen soll nicht wieder auf Piper warten. Darum bleibt jedes
+// fertige Chunk liegen, statt nach dem Abspielen geloescht zu werden - so
+// spielt auch eine mittendrin gestoppte Antwort sofort weiter.
+const CHUNK_CACHE_TTL_MS = 5 * 60 * 1000;
+const CHUNK_CACHE_LIMIT = 20;
+
+interface CachedChunk {
+  uri: string;
+  createdAt: number;
+}
+
+// Schluessel ist Maschine + Chunk-Text: zwei Maschinen koennen verschiedene
+// Stimmen eingerichtet haben, deren Audio darf sich nicht vermischen.
+const chunkCache = new Map<string, CachedChunk>();
+
+type ReadAloudState = 'idle' | 'loading' | 'playing' | 'paused' | 'error';
+
+// Solange nichts laeuft, steht nur der Lautsprecher da; Pause und
+// Geschwindigkeit fahren erst mit der Wiedergabe ein.
+const controlsEntering = FadeIn.duration(160);
+const controlsExiting = FadeOut.duration(120);
+
+function deleteUriQuietly(uri: string) {
+  try {
+    new File(uri).delete();
+  } catch {
+    // Datei kann schon weg sein (z.B. OS-Cache-Bereinigung) - egal.
+  }
+}
+
+function storeChunk(key: string, uri: string) {
+  // Erst loeschen, dann setzen: die Map sortiert nach Einfuegen, so fliegen
+  // wirklich die aeltesten Eintraege zuerst raus.
+  chunkCache.delete(key);
+  chunkCache.set(key, { uri, createdAt: Date.now() });
+  while (chunkCache.size > CHUNK_CACHE_LIMIT) {
+    const oldest = chunkCache.keys().next();
+    if (oldest.done) break;
+    const entry = chunkCache.get(oldest.value);
+    if (entry) deleteUriQuietly(entry.uri);
+    chunkCache.delete(oldest.value);
+  }
+}
+
+function readCachedChunk(key: string): string | null {
+  const entry = chunkCache.get(key);
+  if (!entry) return null;
+  if (Date.now() - entry.createdAt > CHUNK_CACHE_TTL_MS) {
+    deleteUriQuietly(entry.uri);
+    chunkCache.delete(key);
+    return null;
+  }
+  return entry.uri;
+}
 
 async function synthesizeToFile(machineId: string, text: string, index: number): Promise<File> {
   const result = await machineReadAloud(machineId, text);
@@ -309,28 +365,24 @@ async function synthesizeToFile(machineId: string, text: string, index: number):
   return file;
 }
 
-function deleteQuietly(file: File | null) {
-  try {
-    file?.delete();
-  } catch {
-    // Datei kann schon weg sein (z.B. OS-Cache-Bereinigung) - egal.
-  }
-}
-
 function MessageReadAloudButton(props: { text: string; machineId: string }) {
   const { theme } = useUnistyles();
-  const [state, setState] = React.useState<'idle' | 'loading' | 'playing' | 'error'>('idle');
+  const [state, setState] = React.useState<ReadAloudState>('idle');
   const [rate, setRate] = useSettingMutable('readAloudPlaybackRate');
   const player = useAudioPlayer();
   // Ref statt State als Sperre: State aus der Closure wuerde bei zwei schnellen
   // Taps vor dem ersten Re-Render noch 'idle' lesen und zwei Requests ausloesen.
   const busyRef = React.useRef(false);
-  // Later chunks must use a rate changed mid-playback; the press closure only has the old one.
+  // Spaetere Chunks muessen eine waehrend der Wiedergabe geaenderte Rate nutzen;
+  // die Closure des Taps haelt nur die alte.
   const rateRef = React.useRef(rate);
   rateRef.current = rate;
   const mountedRef = React.useRef(true);
-  // Resolves the chunk currently playing; also called on unmount so the loop ends.
+  // Loest das Warten auf das laufende Chunk auf - auch beim Unmount und beim
+  // Stoppen, damit die Chunk-Schleife endet statt weiterzulaufen.
   const finishRef = React.useRef<(() => void) | null>(null);
+  // Von Stop gesetzt: die Schleife bricht beim naechsten await ab.
+  const stoppedRef = React.useRef(false);
   const errorResetRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
   React.useEffect(() => () => {
@@ -339,7 +391,7 @@ function MessageReadAloudButton(props: { text: string; machineId: string }) {
     if (errorResetRef.current) clearTimeout(errorResetRef.current);
   }, []);
 
-  const playToEnd = React.useCallback((file: File) => new Promise<void>((resolve) => {
+  const playToEnd = React.useCallback((uri: string) => new Promise<void>((resolve) => {
     finishRef.current = resolve;
     const sub = player.addListener('playbackStatusUpdate', (status) => {
       if (status.didJustFinish) {
@@ -347,32 +399,43 @@ function MessageReadAloudButton(props: { text: string; machineId: string }) {
         resolve();
       }
     });
-    player.replace(file.uri);
+    player.replace(uri);
+    player.seekTo(0);
     player.setPlaybackRate(rateRef.current, 'high');
     player.play();
   }), [player]);
 
-  const handlePress = React.useCallback(async () => {
+  const startPlayback = React.useCallback(async () => {
+    if (busyRef.current) return;
     const chunks = splitForReadAloud(stripMarkdown(props.text));
-    if (busyRef.current || chunks.length === 0) return;
+    if (chunks.length === 0) return;
     busyRef.current = true;
+    stoppedRef.current = false;
+    const chunkUri = (i: number): Promise<string> => {
+      const key = `${props.machineId}\u0000${chunks[i]}`;
+      const cached = readCachedChunk(key);
+      if (cached) return Promise.resolve(cached);
+      return synthesizeToFile(props.machineId, chunks[i], i).then((file) => {
+        storeChunk(key, file.uri);
+        return file.uri;
+      });
+    };
     setState('loading');
-    let file: File | null = null;
     try {
-      // Fetch chunk i+1 while chunk i plays, so there is no gap between them.
-      let next = synthesizeToFile(props.machineId, chunks[0], 0);
+      // Chunk i+1 wird geholt, waehrend Chunk i spricht - sonst entstuende
+      // zwischen zwei Saetzen eine Pause von der Synthesedauer.
+      let next = chunkUri(0);
+      next.catch(() => {}); // wird unten erwartet, nur die Warnung bis dahin vermeiden
       for (let i = 0; i < chunks.length; i++) {
-        file = await next;
-        if (!mountedRef.current) return;
+        const uri = await next;
+        if (stoppedRef.current || !mountedRef.current) return;
         if (i + 1 < chunks.length) {
-          next = synthesizeToFile(props.machineId, chunks[i + 1], i + 1);
-          next.catch(() => {}); // handled when awaited; avoids an unhandled-rejection warning meanwhile
+          next = chunkUri(i + 1);
+          next.catch(() => {});
         }
         setState('playing');
-        await playToEnd(file);
-        deleteQuietly(file);
-        file = null;
-        if (!mountedRef.current) return;
+        await playToEnd(uri);
+        if (stoppedRef.current || !mountedRef.current) return;
       }
       setState('idle');
     } catch (error) {
@@ -383,23 +446,54 @@ function MessageReadAloudButton(props: { text: string; machineId: string }) {
       Modal.alert(t('common.readAloudFailed'), error instanceof Error ? error.message : String(error));
     } finally {
       busyRef.current = false;
-      deleteQuietly(file);
     }
   }, [props.text, props.machineId, playToEnd]);
+
+  const stopPlayback = React.useCallback(() => {
+    stoppedRef.current = true;
+    player.pause();
+    finishRef.current?.();
+    finishRef.current = null;
+    busyRef.current = false;
+    setState('idle');
+  }, [player]);
+
+  const isActive = state === 'playing' || state === 'paused';
+
+  const handlePress = React.useCallback(() => {
+    if (state === 'loading') return;
+    if (isActive) {
+      stopPlayback();
+      return;
+    }
+    void startPlayback();
+  }, [state, isActive, startPlayback, stopPlayback]);
+
+  const handleTogglePause = React.useCallback(() => {
+    if (state === 'playing') {
+      player.pause();
+      setState('paused');
+      return;
+    }
+    if (state === 'paused') {
+      player.play();
+      setState('playing');
+    }
+  }, [state, player]);
 
   const handleCycleRate = React.useCallback(() => {
     const next = READ_ALOUD_RATES[(READ_ALOUD_RATES.indexOf(rate as typeof READ_ALOUD_RATES[number]) + 1) % READ_ALOUD_RATES.length];
     setRate(next);
     // Takes effect immediately if something is already playing; the next
     // playback picks it up from the setting either way.
-    if (state === 'playing') player.setPlaybackRate(next, 'high');
-  }, [rate, setRate, state, player]);
+    if (isActive) player.setPlaybackRate(next, 'high');
+  }, [rate, setRate, isActive, player]);
 
   return (
     <>
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel={t('common.readAloud')}
+        accessibilityLabel={isActive ? t('common.readAloudStop') : t('common.readAloud')}
         hitSlop={READ_ALOUD_HIT_SLOP}
         onPress={handlePress}
         style={({ pressed }) => [
@@ -414,23 +508,44 @@ function MessageReadAloudButton(props: { text: string; machineId: string }) {
           <Ionicons name="alert-circle" size={22} color={theme.colors.status.error} />
         ) : (
           <Ionicons
-            name={state === 'playing' ? 'volume-high' : 'volume-medium-outline'}
+            name={isActive ? 'stop-circle' : 'volume-medium-outline'}
             size={22}
             color={theme.colors.text}
           />
         )}
       </Pressable>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={t('common.readAloudSpeed', { rate })}
-        hitSlop={READ_ALOUD_HIT_SLOP}
-        onPress={handleCycleRate}
-        style={({ pressed }) => [styles.readAloudRate, pressed && styles.copyActionPressed]}
-      >
-        <Text style={[styles.readAloudRateText, { color: theme.colors.textSecondary }]}>
-          {rate}×
-        </Text>
-      </Pressable>
+      {isActive && (
+        <Animated.View
+          entering={controlsEntering}
+          exiting={controlsExiting}
+          style={styles.readAloudControls}
+        >
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={state === 'paused' ? t('common.readAloudResume') : t('common.readAloudPause')}
+            hitSlop={READ_ALOUD_HIT_SLOP}
+            onPress={handleTogglePause}
+            style={({ pressed }) => [styles.readAloudButton, pressed && styles.copyActionPressed]}
+          >
+            <Ionicons
+              name={state === 'paused' ? 'play' : 'pause'}
+              size={18}
+              color={theme.colors.text}
+            />
+          </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={t('common.readAloudSpeed', { rate })}
+            hitSlop={READ_ALOUD_HIT_SLOP}
+            onPress={handleCycleRate}
+            style={({ pressed }) => [styles.readAloudButton, pressed && styles.copyActionPressed]}
+          >
+            <Text style={[styles.readAloudRateText, { color: theme.colors.textSecondary }]}>
+              {rate}×
+            </Text>
+          </Pressable>
+        </Animated.View>
+      )}
     </>
   );
 }
@@ -667,8 +782,8 @@ const styles = StyleSheet.create((theme) => ({
   copyAction: {
     // No width, so the box shrink-wraps the glyph and its left edge lands on the
     // same x as the markdown text above it. hitSlop carries the touch target.
-    alignSelf: 'flex-start',
-    height: 20,
+    // Height matches the read-aloud buttons so all glyphs share one baseline.
+    height: 28,
     justifyContent: 'center',
     // Sits fully below the last markdown block's trailing margin, clear of the
     // reply text.
@@ -678,7 +793,6 @@ const styles = StyleSheet.create((theme) => ({
     opacity: 0.5,
   },
   readAloudAction: {
-    alignSelf: 'flex-start',
     height: 28,
     width: 28,
     borderRadius: 14,
@@ -691,14 +805,18 @@ const styles = StyleSheet.create((theme) => ({
     // allein war laut Rueckmeldung zu unauffaellig.
     backgroundColor: theme.colors.surfaceHigh,
   },
-  readAloudRate: {
-    alignSelf: 'flex-start',
+  readAloudControls: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  readAloudButton: {
     height: 28,
+    minWidth: 28,
     paddingHorizontal: 6,
     borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 0,
   },
   readAloudRateText: {
     fontSize: 13,
