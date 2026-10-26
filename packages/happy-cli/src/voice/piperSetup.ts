@@ -4,7 +4,7 @@
  */
 
 import chalk from 'chalk';
-import { spawn } from 'node:child_process';
+import { spawnSync } from 'node:child_process';
 import { createWriteStream, existsSync, mkdirSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { createInterface } from 'node:readline/promises';
@@ -56,7 +56,8 @@ async function runVoiceSetup(): Promise<void> {
         const archive = join(VOICE_DIR, archiveUrl.endsWith('.zip') ? 'piper.zip' : 'piper.tar.gz');
         await download(archiveUrl, archive);
         // System tar: GNU/bsd tar on Linux/macOS, bsdtar on Windows 10+ (also unpacks the .zip).
-        await run('tar', ['-xf', archive, '-C', VOICE_DIR]);
+        const tar = spawnSync('tar', ['-xf', archive, '-C', VOICE_DIR], { stdio: 'inherit' });
+        if (tar.status !== 0) throw new Error(`tar failed: ${tar.error?.message ?? `exit ${tar.status}`}`);
         rmSync(archive);
     }
     for (const suffix of ['.onnx', '.onnx.json'] as const) {
@@ -67,8 +68,7 @@ async function runVoiceSetup(): Promise<void> {
     console.log('Testing synthesis...');
     await synthesize('Test', voice.id);
 
-    const config: VoiceConfig = { voice: voice.id };
-    writeFileSync(CONFIG_FILE, JSON.stringify(config, null, 2));
+    writeFileSync(CONFIG_FILE, JSON.stringify({ voice: voice.id } satisfies VoiceConfig, null, 2));
     console.log(chalk.green(`Done. Read-aloud now uses ${voice.label}.`) + ' The running daemon picks this up without a restart.');
 }
 
@@ -80,12 +80,4 @@ async function download(url: string, target: string): Promise<void> {
     const tmp = `${target}.part`;
     await pipeline(Readable.fromWeb(res.body as any), createWriteStream(tmp));
     renameSync(tmp, target);
-}
-
-function run(cmd: string, args: string[]): Promise<void> {
-    return new Promise((resolve, reject) => {
-        const child = spawn(cmd, args, { stdio: 'inherit' });
-        child.on('error', reject);
-        child.on('close', (code) => code === 0 ? resolve() : reject(new Error(`${cmd} exited with ${code}`)));
-    });
 }
