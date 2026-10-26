@@ -1,12 +1,16 @@
 "use strict";
 // Entwurf: minimaler TTS-Server um Piper. Kein Framework, nur node:http.
-// POST /tts  { "text": "..." }  -> audio/wav
+// POST /tts  { "text": "...", "voice": "en"|"de" }  -> audio/wav
 const http = require("node:http");
 const { spawn } = require("node:child_process");
+const fs = require("node:fs");
 const path = require("node:path");
 
 const PIPER = path.join(__dirname, "piper", "piper");
-const MODEL = path.join(__dirname, "de_DE-thorsten-high.onnx");
+// Piper hat kein mehrsprachiges Modell, eine Stimme pro Sprache. Die App
+// schickt "voice" nicht mit, dann gilt TTS_VOICE (Default: Englisch).
+const VOICES = { en: "en_US-lessac-high", de: "de_DE-thorsten-high" };
+const DEFAULT_VOICE = VOICES[process.env.TTS_VOICE] ? process.env.TTS_VOICE : "en";
 const PORT = process.env.PORT || 5055;
 const MAX_TEXT = 4000;
 
@@ -22,8 +26,9 @@ const server = http.createServer((req, res) => {
   });
   req.on("end", () => {
     let text;
+    let voice;
     try {
-      text = JSON.parse(body).text;
+      ({ text, voice } = JSON.parse(body));
     } catch {
       res.writeHead(400).end("ungueltiges JSON");
       return;
@@ -34,7 +39,13 @@ const server = http.createServer((req, res) => {
     }
     text = text.slice(0, MAX_TEXT);
 
-    const piper = spawn(PIPER, ["--model", MODEL, "--output_file", "-"]);
+    const modelPath = path.join(__dirname, `${VOICES[voice] || VOICES[DEFAULT_VOICE]}.onnx`);
+    if (!fs.existsSync(modelPath)) {
+      res.writeHead(500).end(`Modell fehlt: ${path.basename(modelPath)}`);
+      return;
+    }
+
+    const piper = spawn(PIPER, ["--model", modelPath, "--output_file", "-"]);
     const chunks = [];
     let responded = false;
     piper.stdout.on("data", (c) => chunks.push(c));
