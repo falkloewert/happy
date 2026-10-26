@@ -139,3 +139,24 @@ becomes a plausible upstream feature on its own: opt-in, self-hosted,
 doesn't touch Sync/Encryption/Voice-core, and doesn't compete with their
 paid ElevenLabs conversational Voice (this is a one-way "read this message"
 button, not a live conversation).
+
+## Betrieb auf docker01 (eingerichtet 2026-10-26)
+
+- Der Daemon läuft aus dem **Repo-Build**, nicht aus dem globalen npm-Paket: der globale
+  `happy`-Install ist Upstream-1.2.5 und kennt den `read-aloud`-RPC-Handler nicht.
+
+  ```
+  cd ~/happy/packages/happy-cli && pnpm build
+  node dist/index.mjs daemon start
+  ```
+
+  Die `@reboot`-Zeile in `crontab -l` zeigt seit dem 26.10. auf diesen Pfad (Backup:
+  `~/crontab-backup-2026-10-26.txt`). **Nach jedem `git pull` neu bauen**, sonst läuft
+  alter Code weiter.
+- Stimme: `~/.happy/voice/config.json`, gesetzt per `happy voice setup` (aktuell
+  `en_US-hfc_female-medium`). Der Handler liest die Config bei jedem Aufruf, ein
+  Stimmenwechsel braucht keinen Daemon-Neustart.
+- Der alte WLAN-Prototyp (`tools/tts-dev/server.js`, Port 5055) läuft weiter, die App
+  benutzt ihn aber nicht mehr — nur noch zum Vergleich von Stimmen per `curl`.
+- Etwaige Nachrichtenlatenz: 300-Zeichen-Chunk ≈ 1,7 s Synthese auf docker01, Wiedergabe
+  startet nach dem ersten Chunk (gemessen 2026-10-26).
