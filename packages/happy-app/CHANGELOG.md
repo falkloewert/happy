@@ -1,3 +1,10 @@
+# October 26 - Read answers aloud
+
+- **Listen instead of reading** — a speaker button on every agent reply speaks it with a voice on your own computer. Run `happy voice setup` on the machine that runs your sessions, then tap the speaker; it works over mobile data, not only on your Wi-Fi.
+- **Picks up where you stopped** — tap to stop, tap again to continue, plus pause and a 1× / 1.25× / 1.5× / 2× speed cycle.
+- **Timestamps** — every agent reply shows when it arrived; the newest one also counts up as "4 min" while you watch.
+- **Fixes** — a GitHub profile without a public name no longer wipes out the whole profile card.
+
 # September 20 - Closer to Happy Desktop
 
 - **Bots** — make one from your phone: pick a face, name it, start talking.
