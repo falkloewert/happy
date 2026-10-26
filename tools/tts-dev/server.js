@@ -9,7 +9,7 @@ const path = require("node:path");
 const PIPER = path.join(__dirname, "piper", "piper");
 // Piper hat kein mehrsprachiges Modell, eine Stimme pro Sprache. Die App
 // schickt "voice" nicht mit, dann gilt TTS_VOICE (Default: Englisch).
-const VOICES = { en: "en_US-lessac-high", de: "de_DE-thorsten-high" };
+const VOICES = { en: "en_US-hfc_female-medium", de: "de_DE-thorsten-high" };
 const DEFAULT_VOICE = VOICES[process.env.TTS_VOICE] ? process.env.TTS_VOICE : "en";
 const PORT = process.env.PORT || 5055;
 const MAX_TEXT = 4000;

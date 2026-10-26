@@ -16,7 +16,7 @@ export interface PiperVoice {
 
 export const PIPER_VOICES: PiperVoice[] = [
     { id: 'de_DE-thorsten-high', label: 'German - Thorsten', path: 'de/de_DE/thorsten/high/de_DE-thorsten-high' },
-    { id: 'en_US-lessac-medium', label: 'English (US) - Lessac', path: 'en/en_US/lessac/medium/en_US-lessac-medium' },
+    { id: 'en_US-hfc_female-medium', label: 'English (US) - HFC Female', path: 'en/en_US/hfc_female/medium/en_US-hfc_female-medium' },
     { id: 'es_ES-davefx-medium', label: 'Spanish - Davefx', path: 'es/es_ES/davefx/medium/es_ES-davefx-medium' },
     { id: 'fr_FR-siwis-medium', label: 'French - Siwis', path: 'fr/fr_FR/siwis/medium/fr_FR-siwis-medium' },
     { id: 'it_IT-paola-medium', label: 'Italian - Paola', path: 'it/it_IT/paola/medium/it_IT-paola-medium' },
@@ -28,7 +28,7 @@ export function piperVoiceUrl(voice: PiperVoice, suffix: '.onnx' | '.onnx.json')
 }
 
 // rhasspy/piper is archived; 2023.11.14-2 is its last binary release.
-// ponytail: only linux x64 has been run for real, the other archives are untested - verify on first macOS/Windows/ARM user report.
+// ponytail: only linux x64 has been run for real, the other archives are untested - verify on first macOS/Windows/ARM user report. URLs checked 2026-10-26.
 const PIPER_RELEASE = 'https://github.com/rhasspy/piper/releases/download/2023.11.14-2';
 const PIPER_ARCHIVES: Record<string, string> = {
     'linux-x64': 'piper_linux_x86_64.tar.gz',

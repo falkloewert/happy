@@ -40,14 +40,16 @@ MessageReadAloudButton
 ### 1. CLI side — `packages/happy-cli`
 
 - **`src/voice/piperVoices.ts`**: static list of offered (language, voice,
-  download URL) tuples. Starter list (verify each URL still resolves before
-  using — only `de_DE-thorsten-high` has actually been downloaded and tested
-  so far, in this session):
-  - German — Thorsten (`de_DE-thorsten-high`) — already verified working
-  - English — `en_US-lessac-medium`
+  download URL) tuples (implemented; German, both English candidates and the
+  Piper binary were actually downloaded and played on 2026-10-26, the other
+  model URLs were only checked to resolve):
+  - German — Thorsten (`de_DE-thorsten-high`)
+  - English — `en_US-hfc_female-medium` (the most natural-sounding English
+    Piper voice; `en_US-lessac-high` is the clearer, more announcer-like
+    alternative)
   - Spanish — `es_ES-davefx-medium`
   - French — `fr_FR-siwis-medium`
-  - Italian — `it_IT-riccardo-medium`
+  - Italian — `it_IT-paola-medium`
   - Portuguese — `pt_BR-faber-medium`
   All from `https://huggingface.co/rhasspy/piper-voices` — same host/path
   pattern as the German one already in `tools/tts-dev/`. Piper has no

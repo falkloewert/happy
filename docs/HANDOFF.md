@@ -18,7 +18,7 @@ echtes Mehrfach-Feature-Projekt geworden.
 |---|---|---|
 | `fork/falk-features` | Vorlesen-Button (WLAN-Prototyp, Piper TTS), Zeitstempel, Stop-Funktion, Geschwindigkeitsregler (1x/1.5x/2x). Alles getestet auf echtem Android-Geraet per EAS-Cloud-Build. Gepusht. | Ja, Haupt-Arbeitsbranch |
 | `feature/message-timestamps` | Nur die Zeitstempel-Aenderung, sauber extrahiert, per `ponytail-review` bereinigt. **Offener Pull Request:** https://github.com/slopus/happy/pull/1922 | **Nicht anfassen**, außer um auf PR-Feedback zu reagieren |
-| `feature/self-hosted-tts` | Ersetzt den WLAN-Prototyp durch eine RPC-basierte Loesung (siehe unten). **Lief zuletzt auf `docker01` durch einen Hintergrund-Agenten, noch NICHT nach GitHub gepusht** (Stand: 3 lokale Commits dort, ein File noch uncommitted — CLI-RPC-Handler + `happy voice setup`, App-seitiger RPC-Aufruf, Settings-UI). | **Nicht parallel dran arbeiten**, bis er gepusht ist — sonst Konflikte. Erst nachfragen/pruefen ob er fertig/gepusht ist. |
+| `feature/self-hosted-tts` | Ersetzt den WLAN-Prototyp durch eine RPC-basierte Loesung (siehe unten). Gepusht, mit `fork/falk-features` gemerged (Cache, Pause, 1,25x, Chunk-Transport in einem Branch). | Ja, jetzt der Haupt-Arbeitsbranch |
 
 ## Warum WLAN-Prototyp → RPC (wichtigste Architekturentscheidung)
 

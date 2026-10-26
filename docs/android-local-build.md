@@ -78,7 +78,7 @@ adb shell am start -a android.intent.action.VIEW \
 `string` und `email` als `string | undefined`, der Server liefert aber beides als `null`
 (`packages/happy-server/sources/app/api/types.ts`). Folge: das **komplette** Profil wurde
 verworfen (Default-Werte), Name/Avatar fehlten. Behoben am 2026-10-26 (`name` und `email`
-nullable). Der Fix ist lokal noch **nicht committet** und betrifft auch upstream
+nullable). Der Fix ist committet (`755124df`) und betrifft auch upstream
 (`slopus/happy`) — dort als eigenen PR wert.
 
 ### Logcat statt Raten
