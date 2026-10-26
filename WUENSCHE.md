@@ -10,15 +10,14 @@ Eigener Fork von [slopus/happy](https://github.com/slopus/happy) (MIT) unter `fa
       `@falk53/happy`) wurde erfolgreich gebaut und installiert — das war die eigentliche
       Risiko-Pruefung (Cloud-Build-Pipeline funktioniert). Der Feature-Branch selbst (Vorlesen +
       Zeitstempel) noch nicht als eigener Build getestet.
-- [ ] (2026-10-26) **TTS-Endpoint-Entscheidung vor echtem Einsatz.** `MessageView.tsx` hat aktuell
-      `http://localhost:5055/tts` hardcoded (nur Testzweck). Fuer echten Betrieb vom Handy aus noetig:
-      - Wo laeuft der Piper-Server (docker01, siehe `tools/tts-dev/`)?
-      - Wie erreicht ihn das Handy von ausserhalb des LAN (eigene Domain+TLS, oder Tailscale)?
-      - Auth (die App schickt den vollen Nachrichtentext im Klartext an den Endpoint).
-      - Android blockiert Klartext-HTTP in Release-Builds — ohne HTTPS geht's auf dem echten Geraet
-        gar nicht, nur im Dev-Client.
-      Danach: Endpoint/Token aus `Settings`-Schema statt Konstante (siehe Konvention in
-      `packages/happy-app/sources/sync/settings.ts` — flach, kein Nesting, synct geraeteuebergreifend).
+- [ ] (2026-10-26) **TTS-Transport grundlegend neu bauen** — nicht mehr hardcodierte LAN-IP +
+      Android-Cleartext-Ausnahme, sondern ueber Happys bestehenden RPC-Kanal (wie Session-Spawn/
+      Resume und der Rig-Datei-Browser), damit es von ueberall funktioniert, nicht nur im selben
+      WLAN, und ohne native Config-Aenderung auskommt. Vollstaendiger Plan mit Aufgabenliste:
+      [`docs/self-hosted-tts-plan.md`](docs/self-hosted-tts-plan.md). Ersetzt den aktuellen
+      WLAN-Prototyp vollstaendig (inkl. Sprachauswahl beim Setup: Thorsten/Deutsch,
+      Englisch/Spanisch/... je ein eigenes Piper-Modell, kein "multilingual" Modell — gibt's bei
+      Piper nicht).
 
 ## Als nächstes
 
