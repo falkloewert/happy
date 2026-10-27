@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
     readVoiceConfig: vi.fn(),
+    pickVoice: vi.fn(),
     synthesize: vi.fn(),
 }));
 vi.mock('./synthesize', () => mocks);
@@ -27,13 +28,15 @@ describe('registerReadAloudHandler', () => {
         expect(mocks.synthesize).not.toHaveBeenCalled();
     });
 
-    it('returns the WAV as base64 with the configured voice', async () => {
-        mocks.readVoiceConfig.mockReturnValue({ voice: 'de_DE-thorsten-high' });
+    it('returns the WAV as base64, spoken with the voice the language picks', async () => {
+        mocks.readVoiceConfig.mockReturnValue({ voice: 'en_US-hfc_female-medium', voices: { de: 'de_DE-thorsten-high' } });
+        mocks.pickVoice.mockReturnValue('de_DE-thorsten-high');
         mocks.synthesize.mockResolvedValue(Buffer.from('RIFF'));
         const h = handlers();
         expect(await h.get('read-aloud')!({ text: 'Hallo' })).toEqual({ ok: true, audioBase64: 'UklGRg==', mimeType: 'audio/wav' });
+        expect(mocks.pickVoice).toHaveBeenCalledWith({ voice: 'en_US-hfc_female-medium', voices: { de: 'de_DE-thorsten-high' } }, 'Hallo');
         expect(mocks.synthesize).toHaveBeenCalledWith('Hallo', 'de_DE-thorsten-high');
-        expect(await h.get('read-aloud-status')!({})).toEqual({ voice: 'de_DE-thorsten-high' });
+        expect(await h.get('read-aloud-status')!({})).toEqual({ voice: 'en_US-hfc_female-medium' });
     });
 });
 

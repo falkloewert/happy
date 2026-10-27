@@ -8,6 +8,7 @@ import { spawn } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { configuration } from '@/configuration';
+import { detectLanguage } from './language';
 
 export const VOICE_DIR = join(configuration.happyHomeDir, 'voice');
 export const CONFIG_FILE = join(VOICE_DIR, 'config.json');
@@ -19,7 +20,10 @@ const MAX_TEXT = 2000;
 const SYNTH_TIMEOUT_MS = 25_000;
 
 export interface VoiceConfig {
+    /** Default voice, also the fallback when the text's language is unclear. */
     voice: string;
+    /** Optional per-language voices, e.g. { "de": "de_DE-thorsten-high" }. */
+    voices?: Record<string, string>;
 }
 
 export function modelPath(voice: string): string {
@@ -33,10 +37,26 @@ export function readVoiceConfig(): VoiceConfig | null {
         if (typeof config.voice !== 'string' || !existsSync(PIPER_BINARY) || !existsSync(modelPath(config.voice))) {
             return null;
         }
+        // A language entry whose model was never downloaded is dropped instead of
+        // failing the whole config.
+        if (config.voices && typeof config.voices === 'object') {
+            const voices: Record<string, string> = {};
+            for (const [language, voice] of Object.entries(config.voices)) {
+                if (typeof voice === 'string' && existsSync(modelPath(voice))) voices[language] = voice;
+            }
+            config.voices = voices;
+        }
         return config;
     } catch {
         return null;
     }
+}
+
+/** The voice to speak `text` with: language-matched if configured, else the default. */
+export function pickVoice(config: VoiceConfig, text: string): string {
+    const language = detectLanguage(text);
+    const matched = language ? config.voices?.[language] : undefined;
+    return matched ?? config.voice;
 }
 
 /** Speaks `text` with the given voice and returns the WAV bytes. */

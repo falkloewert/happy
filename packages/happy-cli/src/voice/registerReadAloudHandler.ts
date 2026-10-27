@@ -1,6 +1,6 @@
 import { RpcHandlerManager } from '@/api/rpc/RpcHandlerManager';
 import { logger } from '@/ui/logger';
-import { readVoiceConfig, synthesize } from './synthesize';
+import { pickVoice, readVoiceConfig, synthesize } from './synthesize';
 
 interface ReadAloudRequest {
     text: string;
@@ -27,8 +27,9 @@ export function registerReadAloudHandler(rpcHandlerManager: RpcHandlerManager) {
         const config = readVoiceConfig();
         if (!config) return { ok: false, reason: 'not-configured' };
         if (typeof params?.text !== 'string') throw new Error('text is required');
-        logger.debug(`[read-aloud] synthesizing ${params.text.length} chars with ${config.voice}`);
-        const wav = await synthesize(params.text, config.voice);
+        const voice = pickVoice(config, params.text);
+        logger.debug(`[read-aloud] synthesizing ${params.text.length} chars with ${voice}`);
+        const wav = await synthesize(params.text, voice);
         return { ok: true, audioBase64: wav.toString('base64'), mimeType: 'audio/wav' };
     });
 
