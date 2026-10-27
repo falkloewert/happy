@@ -77,9 +77,13 @@ und sollten entfernt werden.
    [#1924](https://github.com/slopus/happy/pull/1924) (Profil-Fix). 1922 und 1923 fassen
    dieselbe Aktionszeile in `MessageView.tsx` an — wer zuerst gemerged wird, beim anderen
    nachziehen.
-2. OTA in den Preview-Kanal ist raus (Commit `428bbdcd`, Runtime 21) und auf dem Geraet
-   bestaetigt: die Release-Notiz "October 26 - Read answers aloud" erscheint beim Kaltstart,
-   die installierte Preview-APK passt also zu Runtime 21.
+2. Das OTA vom 26.10. (Commit `428bbdcd`, Runtime 21) **kam nie auf dem Geraet an**, obwohl
+   es im Branch `preview` lag: am Channel `preview` hing kein Branch, und die APK fragte wegen
+   `requestHeaders` in `app.config.js` den Kanal `production` ab, den es im Projekt nicht
+   gibt — jeder Update-Check lief in `ERR_UPDATES_CHECK`. Behoben am 27.10.: Channel
+   `preview` → Branch `preview` verknuepft, `requestHeaders` entfernt (Kanal kommt jetzt aus
+   dem Build-Profil), neue Preview-APK gebaut. **Lektion:** nach jedem Build pruefen, dass
+   `eas channel:list` einen Branch zeigt — ein Update im Branch allein kommt nirgends an.
 3. Der alte WLAN-TTS-Server (`tools/tts-dev/server.js`, Port 5055 auf `docker01`) ist
    gestoppt und wird von der App nicht mehr benutzt; die zwei Stimmen liegen weiter in
    `~/tts-dev/` fuer einen schnellen `curl`-Test.
