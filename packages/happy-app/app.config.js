@@ -209,10 +209,10 @@ export default {
         ],
         updates: {
             // FORK-ONLY: zeigte noch auf bulkacorps Upstream-Projekt-ID.
-            url: "https://u.expo.dev/67daec3a-3c64-482e-bf31-bc293ada3917",
-            requestHeaders: {
-                "expo-channel-name": "production"
-            }
+            // Kein "expo-channel-name" hier: der Kanal kommt aus dem Build-Profil
+            // (eas.json). Auf "production" festgenagelt fragte die Preview-App
+            // einen Kanal ab, den es im Projekt nicht gibt — Updates kamen nie an.
+            url: "https://u.expo.dev/67daec3a-3c64-482e-bf31-bc293ada3917"
         },
         experiments: {
             typedRoutes: true
