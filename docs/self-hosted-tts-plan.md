@@ -153,9 +153,17 @@ button, not a live conversation).
   Die `@reboot`-Zeile in `crontab -l` zeigt seit dem 26.10. auf diesen Pfad (Backup:
   `~/crontab-backup-2026-10-26.txt`). **Nach jedem `git pull` neu bauen**, sonst läuft
   alter Code weiter.
-- Stimme: `~/.happy/voice/config.json`, gesetzt per `happy voice setup` (aktuell
-  `en_US-hfc_female-medium`). Der Handler liest die Config bei jedem Aufruf, ein
-  Stimmenwechsel braucht keinen Daemon-Neustart.
+- Stimme: `~/.happy/voice/config.json`. Der Handler liest die Config bei jedem Aufruf, ein
+  Stimmenwechsel braucht keinen Daemon-Neustart. Format mit Sprachumschaltung:
+
+  ```json
+  { "voice": "en_US-hfc_female-medium", "voices": { "de": "de_DE-thorsten-high" } }
+  ```
+
+  `voice` ist Standard und Fallback, `voices` ordnet Sprachen eine eigene Stimme zu
+  (`src/voice/language.ts` erkennt `de`/`en` grob, pro Chunk). Fehlt die `.onnx`-Datei zu
+  einem Eintrag, wird er still ignoriert; alle Modelle muessen in `~/.happy/voice/` liegen —
+  `happy voice setup` laedt immer nur eine Stimme.
 - Der alte WLAN-Prototyp (`tools/tts-dev/server.js`, Port 5055) läuft weiter, die App
   benutzt ihn aber nicht mehr — nur noch zum Vergleich von Stimmen per `curl`.
 - Etwaige Nachrichtenlatenz: 300-Zeichen-Chunk ≈ 1,7 s Synthese auf docker01, Wiedergabe
