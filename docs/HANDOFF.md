@@ -82,8 +82,13 @@ und sollten entfernt werden.
    `requestHeaders` in `app.config.js` den Kanal `production` ab, den es im Projekt nicht
    gibt — jeder Update-Check lief in `ERR_UPDATES_CHECK`. Behoben am 27.10.: Channel
    `preview` → Branch `preview` verknuepft, `requestHeaders` entfernt (Kanal kommt jetzt aus
-   dem Build-Profil), neue Preview-APK gebaut. **Lektion:** nach jedem Build pruefen, dass
-   `eas channel:list` einen Branch zeigt — ein Update im Branch allein kommt nirgends an.
+   dem Build-Profil). **Lektion:** nach jedem Build pruefen, dass `eas channel:list` einen
+   Branch zeigt — ein Update im Branch allein kommt nirgends an.
+   **Uebergangsloesung, wieder abbauen:** die noch installierte APK fragt weiter `production`
+   an, deshalb zeigt der Channel `production` (angelegt 27.10.) vorlaeufig auf Branch
+   `preview`. Sobald eine neu gebaute APK installiert ist (deren Kanal ist `preview`),
+   `eas channel:delete production` — sonst bekaeme ein echter Production-Build
+   Preview-Updates.
 3. Der alte WLAN-TTS-Server (`tools/tts-dev/server.js`, Port 5055 auf `docker01`) ist
    gestoppt und wird von der App nicht mehr benutzt; die zwei Stimmen liegen weiter in
    `~/tts-dev/` fuer einen schnellen `curl`-Test.
